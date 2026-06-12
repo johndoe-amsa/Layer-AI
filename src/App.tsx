@@ -1,0 +1,250 @@
+import { useEffect, useRef, useState } from "react";
+import { TASKS, Task } from "./lib/tasks";
+import { loadSettings, saveSettings, Settings, DEFAULT_MODEL } from "./lib/settings";
+import { streamCompletion } from "./lib/openai";
+import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
+
+export default function App() {
+  const [task, setTask] = useState<Task>(TASKS[0]);
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    initDesktop(() => inputRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showSettings) setShowSettings(false);
+        else hideWindow();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSettings]);
+
+  async function run() {
+    if (!input.trim() || busy) return;
+    if (!settings.apiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setOutput("");
+    abortRef.current = new AbortController();
+    try {
+      await streamCompletion(
+        settings.apiKey,
+        settings.model || DEFAULT_MODEL,
+        [
+          { role: "system", content: task.system },
+          { role: "user", content: input },
+        ],
+        (chunk) => setOutput((prev) => prev + chunk),
+        abortRef.current.signal,
+      );
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function stop() {
+    abortRef.current?.abort();
+  }
+
+  async function pasteFromClipboard() {
+    const text = await readClipboard();
+    if (text) {
+      setInput(text);
+      inputRef.current?.focus();
+    }
+  }
+
+  async function copyOutput() {
+    await navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  function onInputKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      run();
+    }
+  }
+
+  return (
+    <div className="app">
+      <header className="header" data-tauri-drag-region>
+        <div className="brand" data-tauri-drag-region>
+          <span className="brand-dot" />
+          Layer AI
+        </div>
+        <button className="icon-btn" title="Réglages" onClick={() => setShowSettings(true)}>
+          <GearIcon />
+        </button>
+      </header>
+
+      <nav className="tabs">
+        {TASKS.map((t) => (
+          <button
+            key={t.id}
+            className={`tab ${t.id === task.id ? "active" : ""}`}
+            onClick={() => {
+              setTask(t);
+              setOutput("");
+              setError("");
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="main">
+        <div className="input-zone">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onInputKeyDown}
+            placeholder={task.placeholder}
+            spellCheck={false}
+          />
+          <div className="input-actions">
+            <button className="ghost-btn" onClick={pasteFromClipboard}>
+              Coller
+            </button>
+            {input && (
+              <button className="ghost-btn" onClick={() => setInput("")}>
+                Effacer
+              </button>
+            )}
+            {busy ? (
+              <button className="primary-btn stop" onClick={stop}>
+                Stop
+              </button>
+            ) : (
+              <button className="primary-btn" onClick={run} disabled={!input.trim()}>
+                Lancer <kbd>Ctrl ↵</kbd>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && <div className="error">{error}</div>}
+
+        {(output || busy) && (
+          <div className="output-zone">
+            <div className="output-text">
+              {output}
+              {busy && <span className="cursor" />}
+            </div>
+            {output && !busy && (
+              <button className="ghost-btn copy-btn" onClick={copyOutput}>
+                {copied ? "Copié ✓" : "Copier"}
+              </button>
+            )}
+          </div>
+        )}
+      </main>
+
+      <footer className="footer">
+        {isDesktop ? (
+          <span>
+            <kbd>Ctrl Shift Espace</kbd> afficher/masquer · <kbd>Échap</kbd> masquer
+          </span>
+        ) : (
+          <span>Version web · les requêtes partent directement de ton navigateur</span>
+        )}
+      </footer>
+
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onSave={(s) => {
+            setSettings(s);
+            saveSettings(s);
+            setShowSettings(false);
+          }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SettingsPanel({
+  settings,
+  onSave,
+  onClose,
+}: {
+  settings: Settings;
+  onSave: (s: Settings) => void;
+  onClose: () => void;
+}) {
+  const [apiKey, setApiKey] = useState(settings.apiKey);
+  const [model, setModel] = useState(settings.model);
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="panel" onClick={(e) => e.stopPropagation()}>
+        <h2>Réglages</h2>
+        <label>
+          Clé API OpenAI
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-…"
+            autoFocus
+          />
+        </label>
+        <label>
+          Modèle
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={DEFAULT_MODEL}
+          />
+        </label>
+        <p className="hint">
+          La clé est stockée uniquement sur cet appareil (localStorage) et n'est envoyée qu'à
+          l'API OpenAI.
+        </p>
+        <div className="panel-actions">
+          <button className="ghost-btn" onClick={onClose}>
+            Annuler
+          </button>
+          <button
+            className="primary-btn"
+            onClick={() => onSave({ apiKey: apiKey.trim(), model: model.trim() || DEFAULT_MODEL })}
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
