@@ -1,4 +1,4 @@
-# Layer AI
+# Layer AI :)
 
 Mini assistant LLM : corriger, traduire ou reformuler un texte en un raccourci clavier.
 
