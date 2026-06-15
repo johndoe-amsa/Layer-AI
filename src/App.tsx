@@ -20,6 +20,15 @@ export default function App() {
     initDesktop(() => inputRef.current?.focus());
   }, []);
 
+  // Adapte automatiquement la hauteur de la zone de texte à son contenu,
+  // dans la limite de la max-height CSS (au-delà, la zone devient scrollable).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

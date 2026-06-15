@@ -29,10 +29,4 @@ export const TASKS: Task[] = [
       "Tu es un assistant de rédaction. Reformule le texte fourni pour le rendre plus clair, fluide et professionnel, dans sa langue d'origine, sans en changer le sens ni la longueur de manière significative. Réponds UNIQUEMENT avec le texte reformulé, sans commentaire ni guillemets.",
     placeholder: "Colle le texte à reformuler…",
   },
-  {
-    id: "chat",
-    label: "Chat",
-    system: "Tu es un assistant utile et concis. Réponds dans la langue de l'utilisateur.",
-    placeholder: "Pose une question…",
-  },
 ];
