@@ -89,6 +89,9 @@ body {
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px 10px;
   border: none;
   background: none;
@@ -99,6 +102,10 @@ body {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   transition: color 0.15s;
+}
+
+.btn-icon {
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -131,7 +138,7 @@ textarea {
   min-height: 110px;
   max-height: 260px;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   padding: 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -189,6 +196,9 @@ textarea:focus {
 }
 
 .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 7px 12px;
   border: 1px solid var(--border-strong);
   background: var(--bg);
