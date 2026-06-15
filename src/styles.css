@@ -28,9 +28,11 @@ body {
   color: var(--fg);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  /* iPhone : pas de surbrillance bleue au tap, pas de rebond élastique. */
+  /* iPhone : pas de surbrillance bleue au tap, pas de rebond élastique,
+     pas de zoom au double-tap (le pinch est bloqué via le viewport). */
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 .app {
