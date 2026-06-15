@@ -215,11 +215,11 @@ textarea:focus {
   border-color: var(--fg);
 }
 
-/* Action destructive : neutre au repos, rouge au survol. */
+/* Action destructive : neutre au repos, rouge plein au survol. */
 .ghost-btn.danger:hover {
-  background: var(--error-bg);
+  background: var(--error-fg);
   border-color: var(--error-fg);
-  color: var(--error-fg);
+  color: #fff;
 }
 
 /* ---- Output ---- */
