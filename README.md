@@ -4,17 +4,20 @@ Mini assistant LLM : corriger, traduire ou reformuler un texte en un raccourci c
 
 Un seul codebase, deux versions :
 
-- **Web** — déployée sur GitHub Pages, utilisable dans n'importe quel navigateur (idéal au travail, rien à installer).
+- **Web** — déployée sur Vercel, utilisable dans n'importe quel navigateur (idéal au travail, rien à installer).
 - **Desktop Windows** — fenêtre flottante toujours au premier plan, invoquée avec `Ctrl+Shift+Espace` où que tu sois.
 
 La clé API OpenAI se configure dans les réglages de l'app (icône ⚙️). Elle est stockée uniquement sur l'appareil et les requêtes partent directement vers l'API OpenAI — aucun serveur intermédiaire.
 
 ## Version web
 
-Déployée automatiquement sur GitHub Pages à chaque push sur `main` :
-`https://johndoe-amsa.github.io/Layer-AI/`
+Déployée sur Vercel. La branche `main` correspond à la production ; chaque
+autre branche / pull request obtient automatiquement une URL de **preview**
+unique pour tester avant de merger.
 
-> Première fois : activer Pages dans **Settings → Pages → Source : GitHub Actions**.
+> Mise en place : importer le repo sur [vercel.com](https://vercel.com)
+> (preset **Vite**, build `npm run build`, output `dist`). Ne pas définir la
+> variable `DEPLOY_TARGET` — le site est servi depuis la racine du domaine.
 
 ## Version desktop (Windows)
 
@@ -66,5 +69,5 @@ src/                  Frontend React partagé (web + desktop)
   lib/openai.ts       Client API OpenAI (streaming)
   lib/desktop.ts      Intégration Tauri (no-op dans le navigateur)
 src-tauri/            Enveloppe desktop (Rust / Tauri 2)
-.github/workflows/    Déploiement Pages + build Windows
+.github/workflows/    Build Windows (release sur tag v*)
 ```

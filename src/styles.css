@@ -4,7 +4,7 @@
   --muted: #666666;
   --border: #eaeaea;
   --border-strong: #d4d4d4;
-  --accent: #171717;
+  --accent: oklch(0.5761 0.2508 258.23);
   --accent-fg: #ffffff;
   --error-bg: #fff0f0;
   --error-fg: #e5484d;
@@ -89,6 +89,9 @@ body {
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px 10px;
   border: none;
   background: none;
@@ -99,6 +102,10 @@ body {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   transition: color 0.15s;
+}
+
+.btn-icon {
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -131,7 +138,7 @@ textarea {
   min-height: 110px;
   max-height: 260px;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   padding: 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -189,6 +196,9 @@ textarea:focus {
 }
 
 .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 7px 12px;
   border: 1px solid var(--border-strong);
   background: var(--bg);
@@ -203,6 +213,13 @@ textarea:focus {
 .ghost-btn:hover {
   background: #fafafa;
   border-color: var(--fg);
+}
+
+/* Action destructive : neutre au repos, rouge plein au survol. */
+.ghost-btn.danger:hover {
+  background: var(--error-fg);
+  border-color: var(--error-fg);
+  color: #fff;
 }
 
 /* ---- Output ---- */
