@@ -4,7 +4,7 @@
   --muted: #666666;
   --border: #eaeaea;
   --border-strong: #d4d4d4;
-  --accent: #171717;
+  --accent: oklch(0.5761 0.2508 258.23);
   --accent-fg: #ffffff;
   --error-bg: #fff0f0;
   --error-fg: #e5484d;
@@ -213,6 +213,13 @@ textarea:focus {
 .ghost-btn:hover {
   background: #fafafa;
   border-color: var(--fg);
+}
+
+/* Action destructive : neutre au repos, rouge au survol. */
+.ghost-btn.danger:hover {
+  background: var(--error-bg);
+  border-color: var(--error-fg);
+  color: var(--error-fg);
 }
 
 /* ---- Output ---- */

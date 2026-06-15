@@ -153,7 +153,7 @@ export default function App() {
               Coller
             </button>
             {input && (
-              <button className="ghost-btn" onClick={() => setInput("")}>
+              <button className="ghost-btn danger" onClick={() => setInput("")}>
                 <TrashIcon />
                 Effacer
               </button>
