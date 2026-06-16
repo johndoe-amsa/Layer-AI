@@ -323,10 +323,14 @@ export default function App() {
             </div>
           ) : (
             <div className="output-text">
-              {output ||
-                (!busy && (
-                  <span className="output-placeholder">La réponse apparaîtra ici…</span>
-                ))}
+              {output}
+              {!output && !busy && (
+                <div className="output-empty" aria-hidden="true">
+                  <span className="skeleton-line" />
+                  <span className="skeleton-line" />
+                  <span className="skeleton-line" />
+                </div>
+              )}
               {busy && <span className="cursor" />}
             </div>
           )}

@@ -318,8 +318,41 @@ textarea:focus {
   min-height: 44px;
 }
 
-.output-placeholder {
-  color: var(--muted);
+/* État vide : squelette de texte suggérant la réponse à venir. */
+.output-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 3px;
+  animation: placeholder-pulse 2.4s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 9px;
+  border-radius: 5px;
+  background: var(--border-strong);
+}
+
+.skeleton-line:nth-child(1) {
+  width: 95%;
+}
+
+.skeleton-line:nth-child(2) {
+  width: 80%;
+}
+
+.skeleton-line:nth-child(3) {
+  width: 55%;
+}
+
+@keyframes placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* ---- Surlignage des modifications (onglet Corriger) ---- */
