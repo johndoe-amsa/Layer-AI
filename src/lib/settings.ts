@@ -15,9 +15,9 @@ export interface ModelOption {
 }
 
 export const MODELS: ModelOption[] = [
-  { id: "gpt-4o-mini", label: "GPT-4o mini · rapide, économique" },
+  { id: "gpt-4o-mini", label: "GPT-4o mini · éco" },
   { id: "gpt-4.1-mini", label: "GPT-4.1 mini · équilibré" },
-  { id: "gpt-4.1", label: "GPT-4.1 · qualité maximale" },
+  { id: "gpt-4.1", label: "GPT-4.1 · qualité max" },
 ];
 
 /** Modèle par défaut pour chaque mode. */
