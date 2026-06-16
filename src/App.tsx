@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { TASKS, Task, TRANSLATE_LANGS, translateSystem } from "./lib/tasks";
-import { loadSettings, saveSettings, Settings, DEFAULT_MODEL } from "./lib/settings";
+import {
+  loadSettings,
+  saveSettings,
+  loadPrefs,
+  savePrefs,
+  Settings,
+  DEFAULT_MODEL,
+} from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
 
@@ -14,8 +21,13 @@ const TASK_ICONS: Record<string, () => JSX.Element> = {
 };
 
 export default function App() {
-  const [task, setTask] = useState<Task>(TASKS[0]);
-  const [targetLang, setTargetLang] = useState(TRANSLATE_LANGS[0].code);
+  const [task, setTask] = useState<Task>(
+    () => TASKS.find((t) => t.id === loadPrefs().task) ?? TASKS[0],
+  );
+  const [targetLang, setTargetLang] = useState<string>(() => {
+    const code = loadPrefs().targetLang;
+    return TRANSLATE_LANGS.some((l) => l.code === code) ? code : TRANSLATE_LANGS[0].code;
+  });
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,9 +37,34 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Reflète le réglage autoPaste pour le handler d'ouverture (enregistré une
+  // seule fois), sans le figer sur une valeur périmée.
+  const autoPasteRef = useRef(settings.autoPaste);
 
   useEffect(() => {
-    initDesktop(() => inputRef.current?.focus());
+    autoPasteRef.current = settings.autoPaste;
+  }, [settings.autoPaste]);
+
+  // Mémorise le dernier onglet et la dernière langue de traduction.
+  useEffect(() => {
+    savePrefs({ task: task.id, targetLang });
+  }, [task.id, targetLang]);
+
+  useEffect(() => {
+    // À l'affichage de la fenêtre (raccourci global), on pré-remplit le champ
+    // avec le presse-papier si l'option est active et que son contenu diffère
+    // de la saisie en cours, puis on rend le focus.
+    initDesktop(async () => {
+      if (autoPasteRef.current) {
+        const clip = await readClipboard();
+        if (clip && clip !== inputRef.current?.value) {
+          setInput(clip);
+          setOutput("");
+          setError("");
+        }
+      }
+      inputRef.current?.focus();
+    });
   }, []);
 
   // Adapte automatiquement la hauteur de la zone de texte à son contenu,
@@ -104,6 +141,15 @@ export default function App() {
     await navigator.clipboard.writeText(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  }
+
+  // Réinjecte la sortie comme nouvelle entrée pour enchaîner les traitements
+  // (ex. corriger puis reformuler le texte corrigé).
+  function reuseOutput() {
+    setInput(output);
+    setOutput("");
+    setError("");
+    inputRef.current?.focus();
   }
 
   function onInputKeyDown(e: React.KeyboardEvent) {
@@ -213,10 +259,20 @@ export default function App() {
               {busy && <span className="cursor" />}
             </div>
             {output && !busy && (
-              <button className="ghost-btn copy-btn" onClick={copyOutput}>
-                <CopyIcon />
-                {copied ? "Copié ✓" : "Copier"}
-              </button>
+              <div className="output-actions">
+                <button
+                  className="ghost-btn"
+                  onClick={reuseOutput}
+                  title="Reprendre ce texte comme nouvelle entrée"
+                >
+                  <ReuseIcon />
+                  Reprendre
+                </button>
+                <button className="ghost-btn" onClick={copyOutput}>
+                  <CopyIcon />
+                  {copied ? "Copié ✓" : "Copier"}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -258,6 +314,7 @@ function SettingsPanel({
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [model, setModel] = useState(settings.model);
+  const [autoPaste, setAutoPaste] = useState(settings.autoPaste);
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -282,6 +339,16 @@ function SettingsPanel({
             placeholder={DEFAULT_MODEL}
           />
         </label>
+        {isDesktop && (
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={autoPaste}
+              onChange={(e) => setAutoPaste(e.target.checked)}
+            />
+            Coller automatiquement le presse-papier à l'ouverture
+          </label>
+        )}
         <p className="hint">
           La clé est stockée uniquement sur cet appareil (localStorage) et n'est envoyée qu'à
           l'API OpenAI.
@@ -292,7 +359,13 @@ function SettingsPanel({
           </button>
           <button
             className="primary-btn"
-            onClick={() => onSave({ apiKey: apiKey.trim(), model: model.trim() || DEFAULT_MODEL })}
+            onClick={() =>
+              onSave({
+                apiKey: apiKey.trim(),
+                model: model.trim() || DEFAULT_MODEL,
+                autoPaste,
+              })
+            }
           >
             Enregistrer
           </button>
@@ -400,6 +473,15 @@ function CopyIcon() {
     <Icon>
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </Icon>
+  );
+}
+
+function ReuseIcon() {
+  return (
+    <Icon>
+      <polyline points="9 14 4 9 9 4" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
     </Icon>
   );
 }
