@@ -22,6 +22,13 @@ const SAME_LANG =
   "RÈGLE ABSOLUE : réponds impérativement dans la même langue que le texte d'entrée et ne traduis jamais, même partiellement — si le texte est en anglais, la réponse reste en anglais ; en allemand, elle reste en allemand ; etc.";
 
 /**
+ * Clause typographique : proscrit les tirets longs « façon IA » (cadratin et
+ * demi-cadratin) au profit d'un tiret normal.
+ */
+const NO_FANCY_DASH =
+  "N'utilise jamais de tiret cadratin (—) ni de tiret demi-cadratin (–) : emploie un tiret normal (-) ou une autre ponctuation.";
+
+/**
  * Contrat de sortie commun aux tâches : réponse brute, sans habillage.
  * `noun` décrit ce qui doit être renvoyé (ex. « le texte corrigé »).
  */
@@ -35,7 +42,7 @@ export const TASKS: Task[] = [
     label: "Corriger",
     system:
       "Tu es un correcteur professionnel. Corrige uniquement l'orthographe, la grammaire, la conjugaison, la ponctuation et la typographie du texte fourni. " +
-      `${SAME_LANG} ` +
+      `${SAME_LANG} ${NO_FANCY_DASH} ` +
       "Préserve le sens, le ton, le style, les sauts de ligne et la mise en forme. " +
       `${SAFETY} ${outputContract("le texte corrigé")}`,
     placeholder: "Colle le texte à corriger…",
@@ -51,7 +58,8 @@ export const TASKS: Task[] = [
     label: "Reformuler",
     system:
       "Tu es un assistant de rédaction. Reformule le texte fourni pour le rendre plus clair, fluide et professionnel, sans en changer le sens ni la longueur de manière significative. " +
-      `${SAME_LANG} ` +
+      `${SAME_LANG} ${NO_FANCY_DASH} ` +
+      "Si le texte d'entrée contient des tirets cadratins ou demi-cadratins, reformule pour les supprimer. " +
       `${SAFETY} ${outputContract("le texte reformulé")}`,
     placeholder: "Colle le texte à reformuler…",
   },
