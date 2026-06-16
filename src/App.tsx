@@ -184,6 +184,9 @@ export default function App() {
     setInput(output);
     setOutput("");
     setError("");
+    // La sortie disparaît : on quitte l'affichage des modifications pour ne pas
+    // diffuser l'ancien texte source contre une sortie vide (tout en rouge).
+    setShowDiff(false);
     inputRef.current?.focus();
   }
 
@@ -274,6 +277,7 @@ export default function App() {
                   setInput("");
                   setOutput("");
                   setError("");
+                  setShowDiff(false);
                 }}
               >
                 <TrashIcon />
