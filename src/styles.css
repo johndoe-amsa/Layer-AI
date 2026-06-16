@@ -495,7 +495,7 @@ textarea:focus {
 }
 
 .panel {
-  width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   background: var(--bg);
   border-radius: 12px;
   padding: 20px;
@@ -529,6 +529,65 @@ textarea:focus {
 }
 
 .panel input:focus {
+  border-color: var(--fg);
+}
+
+/* ---- Sélection des modèles par mode ---- */
+.models-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.models-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.model-row + .model-row {
+  border-top: 1px solid var(--border);
+}
+
+.model-mode {
+  flex-shrink: 0;
+  width: 92px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.model-row select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg);
+  background: var(--bg);
+  outline: none;
+  cursor: pointer;
+}
+
+.model-row select:focus {
   border-color: var(--fg);
 }
 
