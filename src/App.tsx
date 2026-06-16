@@ -431,29 +431,22 @@ function SettingsPanel({
         <div className="models-group">
           <span className="models-title">Modèle par mode</span>
           <div className="models-list">
-            {TASKS.map((t) => {
-              const current = models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL;
-              const isDefault = current === DEFAULT_MODELS[t.id];
-              return (
-                <div key={t.id} className="model-row">
-                  <span className="model-mode">
-                    {t.label}
-                    {isDefault && <span className="model-default-tag">défaut</span>}
-                  </span>
-                  <select
-                    value={current}
-                    onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
-                  >
-                    {MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                        {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })}
+            {TASKS.map((t) => (
+              <div key={t.id} className="model-row">
+                <span className="model-mode">{t.label}</span>
+                <select
+                  value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
+                  onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
+                >
+                  {MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                      {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
           </div>
         </div>
         {isDesktop && (

@@ -6,7 +6,6 @@
   --border-strong: #d4d4d4;
   --accent: oklch(0.5761 0.2508 258.23);
   --accent-fg: #ffffff;
-  --accent-soft: #e9edff;
   --error-bg: #fff0f0;
   --error-fg: #e5484d;
   --ok-fg: #1a7f37;
@@ -567,24 +566,11 @@ textarea:focus {
 }
 
 .model-mode {
-  display: flex;
-  align-items: center;
-  gap: 7px;
   flex-shrink: 0;
+  width: 92px;
   font-size: 13px;
   font-weight: 500;
   color: var(--fg);
-}
-
-.model-default-tag {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 2px 6px;
-  border-radius: 999px;
 }
 
 .model-row select {
