@@ -20,7 +20,9 @@ export async function streamCompletion(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages, stream: true }),
+    // Température basse : on privilégie la fidélité et la régularité
+    // (correction, traduction, reformulation) plutôt que la créativité.
+    body: JSON.stringify({ model, messages, stream: true, temperature: 0.2 }),
     signal,
   });
 
