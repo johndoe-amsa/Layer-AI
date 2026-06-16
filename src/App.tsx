@@ -271,22 +271,17 @@ export default function App() {
         {(output || busy) && (
           <div className="output-zone">
             {task.id === "fix" && output && !busy && (
-              <div className="lang-select diff-toggle">
-                <div className="lang-options">
-                  <button
-                    className={`lang-pill ${!showDiff ? "active" : ""}`}
-                    onClick={() => setShowDiff(false)}
-                  >
-                    Texte corrigé
-                  </button>
-                  <button
-                    className={`lang-pill ${showDiff ? "active" : ""}`}
-                    onClick={() => setShowDiff(true)}
-                  >
-                    Modifications
-                  </button>
-                </div>
-              </div>
+              <label className="switch-row">
+                <span>Afficher les modifications</span>
+                <span className="switch">
+                  <input
+                    type="checkbox"
+                    checked={showDiff}
+                    onChange={(e) => setShowDiff(e.target.checked)}
+                  />
+                  <span className="slider" />
+                </span>
+              </label>
             )}
             {showDiff && diffSegments ? (
               <div className="output-text">
