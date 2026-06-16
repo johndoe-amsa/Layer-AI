@@ -10,7 +10,7 @@ import {
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
 import { diffWords } from "./lib/diff";
-import { cleanInput, cleanOutput } from "./lib/text";
+import { cleanInput, cleanOutput, normalizeDashes } from "./lib/text";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
 
 /** Hauteur maximale (px) de la zone de texte avant l'apparition du scroll. */
@@ -129,7 +129,12 @@ export default function App() {
         (chunk) => setOutput((prev) => prev + chunk),
         abortRef.current.signal,
       );
-      setOutput((prev) => cleanOutput(prev));
+      setOutput((prev) => {
+        const out = cleanOutput(prev);
+        // Pas en traduction : un tiret long peut y être typographiquement
+        // correct (dialogues en français).
+        return task.id === "translate" ? out : normalizeDashes(out);
+      });
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError((e as Error).message);
     } finally {

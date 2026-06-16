@@ -30,3 +30,12 @@ export function cleanInput(text: string): string {
 export function cleanOutput(text: string): string {
   return text.replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "");
 }
+
+/**
+ * Remplace les tirets longs « façon IA » (cadratin —, demi-cadratin –, ainsi
+ * que les variantes barre horizontale et tiret figure) par un tiret normal.
+ * Filet déterministe complétant la consigne donnée au modèle.
+ */
+export function normalizeDashes(text: string): string {
+  return text.replace(/[—–―‒]/g, "-");
+}
