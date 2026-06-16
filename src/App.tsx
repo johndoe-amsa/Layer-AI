@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TASKS, Task } from "./lib/tasks";
+import { TASKS, Task, TRANSLATE_LANGS, translateSystem } from "./lib/tasks";
 import { loadSettings, saveSettings, Settings, DEFAULT_MODEL } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
@@ -15,6 +15,7 @@ const TASK_ICONS: Record<string, () => JSX.Element> = {
 
 export default function App() {
   const [task, setTask] = useState<Task>(TASKS[0]);
+  const [targetLang, setTargetLang] = useState(TRANSLATE_LANGS[0].code);
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,11 +64,18 @@ export default function App() {
     setOutput("");
     abortRef.current = new AbortController();
     try {
+      const system =
+        task.id === "translate"
+          ? translateSystem(
+              TRANSLATE_LANGS.find((l) => l.code === targetLang)?.name ??
+                TRANSLATE_LANGS[0].name,
+            )
+          : task.system;
       await streamCompletion(
         settings.apiKey,
         settings.model || DEFAULT_MODEL,
         [
-          { role: "system", content: task.system },
+          { role: "system", content: system },
           { role: "user", content: input },
         ],
         (chunk) => setOutput((prev) => prev + chunk),
@@ -139,6 +147,22 @@ export default function App() {
 
       <main className="main">
         <div className="input-zone">
+          {task.id === "translate" && (
+            <div className="lang-select">
+              <span className="lang-label">Traduire vers</span>
+              <div className="lang-options">
+                {TRANSLATE_LANGS.map((l) => (
+                  <button
+                    key={l.code}
+                    className={`lang-pill ${l.code === targetLang ? "active" : ""}`}
+                    onClick={() => setTargetLang(l.code)}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <textarea
             ref={inputRef}
             value={input}
@@ -152,8 +176,15 @@ export default function App() {
               <ClipboardIcon />
               Coller
             </button>
-            {input && (
-              <button className="ghost-btn danger" onClick={() => setInput("")}>
+            {(input || output) && (
+              <button
+                className="ghost-btn danger"
+                onClick={() => {
+                  setInput("");
+                  setOutput("");
+                  setError("");
+                }}
+              >
                 <TrashIcon />
                 Effacer
               </button>
