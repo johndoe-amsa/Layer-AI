@@ -268,64 +268,69 @@ export default function App() {
 
         {error && <div className="error">{error}</div>}
 
-        {(output || busy) && (
-          <div className="output-zone">
-            {task.id === "fix" && output && !busy && (
+        <div className="output-zone">
+          <div className="output-header">
+            {task.id === "fix" && (
               <label className="switch-row">
-                <span>Afficher les modifications</span>
+                <span>Modifications</span>
                 <span className="switch">
                   <input
                     type="checkbox"
                     checked={showDiff}
+                    disabled={!output || busy}
                     onChange={(e) => setShowDiff(e.target.checked)}
                   />
                   <span className="slider" />
                 </span>
               </label>
             )}
-            {showDiff && diffSegments ? (
-              <div className="output-text">
-                {!hasChanges && (
-                  <div className="diff-empty">Aucune correction nécessaire</div>
-                )}
-                {diffSegments.map((s, k) =>
-                  s.op === "equal" ? (
-                    <span key={k}>{s.text}</span>
-                  ) : s.op === "insert" ? (
-                    <ins key={k} className="diff-ins">
-                      {s.text}
-                    </ins>
-                  ) : (
-                    <del key={k} className="diff-del">
-                      {s.text}
-                    </del>
-                  ),
-                )}
-              </div>
-            ) : (
-              <div className="output-text">
-                {output}
-                {busy && <span className="cursor" />}
-              </div>
-            )}
-            {output && !busy && (
-              <div className="output-actions">
-                <button
-                  className="ghost-btn"
-                  onClick={reuseOutput}
-                  title="Reprendre ce texte comme nouvelle entrée"
-                >
-                  <ReuseIcon />
-                  Reprendre
-                </button>
-                <button className="ghost-btn" onClick={copyOutput}>
-                  <CopyIcon />
-                  {copied ? "Copié ✓" : "Copier"}
-                </button>
-              </div>
-            )}
+            <div className="output-actions">
+              <button
+                className="ghost-btn"
+                onClick={reuseOutput}
+                disabled={!output || busy}
+                title="Reprendre ce texte comme nouvelle entrée"
+              >
+                <ReuseIcon />
+                Reprendre
+              </button>
+              <button
+                className="ghost-btn"
+                onClick={copyOutput}
+                disabled={!output || busy}
+              >
+                <CopyIcon />
+                {copied ? "Copié ✓" : "Copier"}
+              </button>
+            </div>
           </div>
-        )}
+          {showDiff && diffSegments ? (
+            <div className="output-text">
+              {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
+              {diffSegments.map((s, k) =>
+                s.op === "equal" ? (
+                  <span key={k}>{s.text}</span>
+                ) : s.op === "insert" ? (
+                  <ins key={k} className="diff-ins">
+                    {s.text}
+                  </ins>
+                ) : (
+                  <del key={k} className="diff-del">
+                    {s.text}
+                  </del>
+                ),
+              )}
+            </div>
+          ) : (
+            <div className="output-text">
+              {output ||
+                (!busy && (
+                  <span className="output-placeholder">La réponse apparaîtra ici…</span>
+                ))}
+              {busy && <span className="cursor" />}
+            </div>
+          )}
+        </div>
       </main>
 
       <footer className="footer">

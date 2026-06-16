@@ -277,6 +277,16 @@ textarea:focus {
   border-color: var(--fg);
 }
 
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ghost-btn:disabled:hover {
+  background: var(--bg);
+  border-color: var(--border-strong);
+}
+
 /* Action destructive : neutre au repos, rouge plein au survol. */
 .ghost-btn.danger:hover {
   background: var(--error-fg);
@@ -293,10 +303,23 @@ textarea:focus {
   padding: 12px;
 }
 
+.output-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+}
+
 .output-text {
   white-space: pre-wrap;
   line-height: 1.6;
   font-size: 13.5px;
+  min-height: 44px;
+}
+
+.output-placeholder {
+  color: var(--muted);
 }
 
 /* ---- Surlignage des modifications (onglet Corriger) ---- */
@@ -304,7 +327,6 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--muted);
@@ -352,6 +374,14 @@ textarea:focus {
   transition: transform 0.2s;
 }
 
+.switch input:disabled {
+  cursor: default;
+}
+
+.switch input:disabled + .slider {
+  opacity: 0.5;
+}
+
 .switch input:checked + .slider {
   background: var(--accent);
 }
@@ -383,9 +413,8 @@ textarea:focus {
 
 .output-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 6px;
-  margin-top: 10px;
+  margin-left: auto;
 }
 
 .cursor {
