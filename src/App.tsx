@@ -124,7 +124,8 @@ export default function App() {
         settings.model || DEFAULT_MODEL,
         [
           { role: "system", content: system },
-          { role: "user", content: text },
+          // Texte délimité : le modèle doit le transformer, pas y répondre.
+          { role: "user", content: `<<<\n${text}\n>>>` },
         ],
         (chunk) => setOutput((prev) => prev + chunk),
         abortRef.current.signal,
