@@ -8,6 +8,8 @@
   --accent-fg: #ffffff;
   --error-bg: #fff0f0;
   --error-fg: #e5484d;
+  --ok-fg: #1a7f37;
+  --ok-bg: #e6f4ea;
   --radius: 10px;
   font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
@@ -275,6 +277,16 @@ textarea:focus {
   border-color: var(--fg);
 }
 
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ghost-btn:disabled:hover {
+  background: var(--bg);
+  border-color: var(--border-strong);
+}
+
 /* Action destructive : neutre au repos, rouge plein au survol. */
 .ghost-btn.danger:hover {
   background: var(--error-fg);
@@ -291,16 +303,141 @@ textarea:focus {
   padding: 12px;
 }
 
+.output-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 18px;
+}
+
 .output-text {
   white-space: pre-wrap;
   line-height: 1.6;
   font-size: 13.5px;
+  min-height: 44px;
 }
 
-.copy-btn {
+/* État vide : squelette de texte suggérant la réponse à venir. */
+.output-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 3px;
+}
+
+.skeleton-line {
+  height: 9px;
+  border-radius: 5px;
+  background: var(--border-strong);
+  opacity: 0.5;
+}
+
+.skeleton-line:nth-child(1) {
+  width: 95%;
+}
+
+.skeleton-line:nth-child(2) {
+  width: 80%;
+}
+
+.skeleton-line:nth-child(3) {
+  width: 55%;
+}
+
+/* ---- Surlignage des modifications (onglet Corriger) ---- */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Interrupteur on/off façon iOS. */
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+}
+
+.switch input {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border-strong);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+
+.switch input:disabled {
+  cursor: default;
+}
+
+.switch input:disabled + .slider {
+  opacity: 0.5;
+}
+
+.switch input:checked + .slider {
+  background: var(--accent);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+.diff-ins {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  text-decoration: none;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.diff-del {
+  color: var(--error-fg);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.diff-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.output-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .cursor {
@@ -393,6 +530,21 @@ textarea:focus {
 
 .panel input:focus {
   border-color: var(--fg);
+}
+
+.checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
 }
 
 .hint {
