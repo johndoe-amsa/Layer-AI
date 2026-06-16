@@ -2,8 +2,25 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Layer AI</title>
+
+    <!-- PWA / écran d'accueil iPhone. Ces balises sont ignorées par le
+         webview Tauri (.exe) : elles ne servent que dans un navigateur. -->
+    <meta name="description" content="Mini assistant LLM : corriger, traduire ou reformuler un texte." />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- iOS : ouvre en plein écran « app » depuis l'écran d'accueil. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Layer AI" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icons/icon-256.png" />
   </head>
   <body>
     <div id="root"></div>
