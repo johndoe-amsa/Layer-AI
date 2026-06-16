@@ -10,6 +10,7 @@ import {
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
 import { diffWords } from "./lib/diff";
+import { cleanInput, cleanOutput } from "./lib/text";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
 
 /** Hauteur maximale (px) de la zone de texte avant l'apparition du scroll. */
@@ -61,7 +62,7 @@ export default function App() {
     // de la saisie en cours, puis on rend le focus.
     initDesktop(async () => {
       if (autoPasteRef.current) {
-        const clip = await readClipboard();
+        const clip = cleanInput(await readClipboard());
         if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
           setOutput("");
@@ -101,11 +102,14 @@ export default function App() {
       setShowSettings(true);
       return;
     }
+    // Texte nettoyé des artefacts de copier-coller (Outlook, Word…) avant
+    // envoi et comparaison, pour éviter les espaces parasites.
+    const text = cleanInput(input);
     setBusy(true);
     setError("");
     setOutput("");
     setShowDiff(false);
-    setSourceText(input);
+    setSourceText(text);
     abortRef.current = new AbortController();
     try {
       const system =
@@ -120,11 +124,12 @@ export default function App() {
         settings.model || DEFAULT_MODEL,
         [
           { role: "system", content: system },
-          { role: "user", content: input },
+          { role: "user", content: text },
         ],
         (chunk) => setOutput((prev) => prev + chunk),
         abortRef.current.signal,
       );
+      setOutput((prev) => cleanOutput(prev));
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError((e as Error).message);
     } finally {
@@ -139,9 +144,23 @@ export default function App() {
   async function pasteFromClipboard() {
     const text = await readClipboard();
     if (text) {
-      setInput(text);
+      setInput(cleanInput(text));
       inputRef.current?.focus();
     }
+  }
+
+  // Collage natif (Ctrl/Cmd+V) : on nettoie le contenu avant insertion.
+  function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const raw = e.clipboardData.getData("text");
+    const cleaned = cleanInput(raw);
+    if (cleaned === raw) return; // rien à nettoyer : on laisse le collage natif
+    e.preventDefault();
+    const el = e.currentTarget;
+    const start = el.selectionStart ?? input.length;
+    const end = el.selectionEnd ?? input.length;
+    setInput(input.slice(0, start) + cleaned + input.slice(end));
+    const caret = start + cleaned.length;
+    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
   }
 
   async function copyOutput() {
@@ -172,7 +191,10 @@ export default function App() {
     () => (showDiff ? diffWords(sourceText, output) : null),
     [showDiff, sourceText, output],
   );
-  const hasChanges = diffSegments?.some((s) => s.op !== "equal") ?? false;
+  // Les seuls changements d'espaces (normalisation typographique) ne comptent
+  // pas comme des corrections visibles.
+  const hasChanges =
+    diffSegments?.some((s) => s.op !== "equal" && !/^\s+$/.test(s.text)) ?? false;
 
   return (
     <div className="app">
@@ -230,6 +252,7 @@ export default function App() {
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={onPaste}
             onKeyDown={onInputKeyDown}
             placeholder={task.placeholder}
             spellCheck={false}
@@ -308,10 +331,16 @@ export default function App() {
           {showDiff && diffSegments ? (
             <div className="output-text">
               {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
-              {diffSegments.map((s, k) =>
-                s.op === "equal" ? (
-                  <span key={k}>{s.text}</span>
-                ) : s.op === "insert" ? (
+              {diffSegments.map((s, k) => {
+                // Changements d'espaces seuls : on les affiche sans surlignage
+                // (insertion en clair, suppression masquée) pour ne garder en
+                // couleur que les vraies modifications de mots.
+                const isSpace = /^\s+$/.test(s.text);
+                if (s.op === "equal" || (isSpace && s.op === "insert")) {
+                  return <span key={k}>{s.text}</span>;
+                }
+                if (isSpace) return null;
+                return s.op === "insert" ? (
                   <ins key={k} className="diff-ins">
                     {s.text}
                   </ins>
@@ -319,8 +348,8 @@ export default function App() {
                   <del key={k} className="diff-del">
                     {s.text}
                   </del>
-                ),
-              )}
+                );
+              })}
             </div>
           ) : (
             <div className="output-text">
