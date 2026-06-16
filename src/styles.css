@@ -8,6 +8,8 @@
   --accent-fg: #ffffff;
   --error-bg: #fff0f0;
   --error-fg: #e5484d;
+  --ok-fg: #1a7f37;
+  --ok-bg: #e6f4ea;
   --radius: 10px;
   font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
@@ -295,6 +297,32 @@ textarea:focus {
   white-space: pre-wrap;
   line-height: 1.6;
   font-size: 13.5px;
+}
+
+/* ---- Surlignage des modifications (onglet Corriger) ---- */
+.diff-toggle {
+  margin-bottom: 10px;
+}
+
+.diff-ins {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  text-decoration: none;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.diff-del {
+  color: var(--error-fg);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.diff-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+  margin-bottom: 8px;
 }
 
 .output-actions {

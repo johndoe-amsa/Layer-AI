@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TASKS, Task, TRANSLATE_LANGS, translateSystem } from "./lib/tasks";
 import {
   loadSettings,
@@ -9,6 +9,7 @@ import {
   DEFAULT_MODEL,
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
+import { diffWords } from "./lib/diff";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
 
 /** Hauteur maximale (px) de la zone de texte avant l'apparition du scroll. */
@@ -30,6 +31,10 @@ export default function App() {
   });
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
+  // Texte effectivement envoyé pour la dernière correction, figé au lancement
+  // afin que le diff reste cohérent même si l'entrée est modifiée ensuite.
+  const [sourceText, setSourceText] = useState("");
+  const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -99,6 +104,8 @@ export default function App() {
     setBusy(true);
     setError("");
     setOutput("");
+    setShowDiff(false);
+    setSourceText(input);
     abortRef.current = new AbortController();
     try {
       const system =
@@ -159,6 +166,14 @@ export default function App() {
     }
   }
 
+  // Surlignage des modifications (onglet « Corriger »). Calculé uniquement à la
+  // demande, sur le texte source figé et la sortie terminée.
+  const diffSegments = useMemo(
+    () => (showDiff ? diffWords(sourceText, output) : null),
+    [showDiff, sourceText, output],
+  );
+  const hasChanges = diffSegments?.some((s) => s.op !== "equal") ?? false;
+
   return (
     <div className="app">
       <header className="header" data-tauri-drag-region>
@@ -183,6 +198,7 @@ export default function App() {
                 setTask(t);
                 setOutput("");
                 setError("");
+                setShowDiff(false);
               }}
             >
               {Icon && <Icon />}
@@ -254,10 +270,49 @@ export default function App() {
 
         {(output || busy) && (
           <div className="output-zone">
-            <div className="output-text">
-              {output}
-              {busy && <span className="cursor" />}
-            </div>
+            {task.id === "fix" && output && !busy && (
+              <div className="lang-select diff-toggle">
+                <div className="lang-options">
+                  <button
+                    className={`lang-pill ${!showDiff ? "active" : ""}`}
+                    onClick={() => setShowDiff(false)}
+                  >
+                    Texte corrigé
+                  </button>
+                  <button
+                    className={`lang-pill ${showDiff ? "active" : ""}`}
+                    onClick={() => setShowDiff(true)}
+                  >
+                    Modifications
+                  </button>
+                </div>
+              </div>
+            )}
+            {showDiff && diffSegments ? (
+              <div className="output-text">
+                {!hasChanges && (
+                  <div className="diff-empty">Aucune correction nécessaire</div>
+                )}
+                {diffSegments.map((s, k) =>
+                  s.op === "equal" ? (
+                    <span key={k}>{s.text}</span>
+                  ) : s.op === "insert" ? (
+                    <ins key={k} className="diff-ins">
+                      {s.text}
+                    </ins>
+                  ) : (
+                    <del key={k} className="diff-del">
+                      {s.text}
+                    </del>
+                  ),
+                )}
+              </div>
+            ) : (
+              <div className="output-text">
+                {output}
+                {busy && <span className="cursor" />}
+              </div>
+            )}
             {output && !busy && (
               <div className="output-actions">
                 <button
