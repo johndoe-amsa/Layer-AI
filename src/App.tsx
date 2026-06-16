@@ -6,7 +6,9 @@ import {
   loadPrefs,
   savePrefs,
   Settings,
-  DEFAULT_MODEL,
+  MODELS,
+  DEFAULT_MODELS,
+  FALLBACK_MODEL,
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
 import { diffWords } from "./lib/diff";
@@ -119,9 +121,10 @@ export default function App() {
                 TRANSLATE_LANGS[0].name,
             )
           : task.system;
+      const model = settings.models[task.id] || DEFAULT_MODELS[task.id] || FALLBACK_MODEL;
       await streamCompletion(
         settings.apiKey,
-        settings.model || DEFAULT_MODEL,
+        model,
         [
           { role: "system", content: system },
           // Texte délimité : le modèle doit le transformer, pas y répondre.
@@ -408,7 +411,7 @@ function SettingsPanel({
   onClose: () => void;
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey);
-  const [model, setModel] = useState(settings.model);
+  const [models, setModels] = useState<Record<string, string>>(settings.models);
   const [autoPaste, setAutoPaste] = useState(settings.autoPaste);
 
   return (
@@ -425,15 +428,24 @@ function SettingsPanel({
             autoFocus
           />
         </label>
-        <label>
-          Modèle
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder={DEFAULT_MODEL}
-          />
-        </label>
+        <div className="models-group">
+          <span className="models-title">Modèle par mode</span>
+          {TASKS.map((t) => (
+            <label key={t.id} className="model-row">
+              {t.label}
+              <select
+                value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
+                onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
         {isDesktop && (
           <label className="checkbox-row">
             <input
@@ -454,13 +466,7 @@ function SettingsPanel({
           </button>
           <button
             className="primary-btn"
-            onClick={() =>
-              onSave({
-                apiKey: apiKey.trim(),
-                model: model.trim() || DEFAULT_MODEL,
-                autoPaste,
-              })
-            }
+            onClick={() => onSave({ apiKey: apiKey.trim(), models, autoPaste })}
           >
             Enregistrer
           </button>
