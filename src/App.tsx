@@ -235,11 +235,7 @@ export default function App() {
             spellCheck={false}
           />
           <div className="input-actions">
-            <button className="ghost-btn" onClick={pasteFromClipboard}>
-              <ClipboardIcon />
-              Coller
-            </button>
-            {(input || output) && (
+            {input ? (
               <button
                 className="ghost-btn danger"
                 onClick={() => {
@@ -250,6 +246,11 @@ export default function App() {
               >
                 <TrashIcon />
                 Effacer
+              </button>
+            ) : (
+              <button className="ghost-btn" onClick={pasteFromClipboard}>
+                <ClipboardIcon />
+                Coller
               </button>
             )}
             {busy ? (
