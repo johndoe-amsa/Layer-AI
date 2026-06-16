@@ -133,6 +133,7 @@ export default function App() {
               key={t.id}
               className={`tab ${t.id === task.id ? "active" : ""}`}
               onClick={() => {
+                if (t.id === task.id) return;
                 setTask(t);
                 setOutput("");
                 setError("");
