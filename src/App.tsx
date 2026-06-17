@@ -454,13 +454,16 @@ function SettingsPanel({
           </div>
         </div>
         {isDesktop && (
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={autoPaste}
-              onChange={(e) => setAutoPaste(e.target.checked)}
-            />
-            Coller automatiquement le presse-papier à l'ouverture
+          <label className="switch-row setting-row">
+            <span>Coller automatiquement le presse-papier à l'ouverture</span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={autoPaste}
+                onChange={(e) => setAutoPaste(e.target.checked)}
+              />
+              <span className="slider" />
+            </span>
           </label>
         )}
         <p className="hint">
