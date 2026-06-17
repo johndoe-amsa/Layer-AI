@@ -422,19 +422,28 @@ function SettingsPanel({
     <div className="overlay" onClick={onClose}>
       <div className="panel" onClick={(e) => e.stopPropagation()}>
         <h2>Réglages</h2>
-        <label>
-          Clé API OpenAI
+
+        <section className="field">
+          <label className="field-label" htmlFor="api-key">
+            Clé API OpenAI
+          </label>
           <input
+            id="api-key"
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="sk-…"
             autoFocus
           />
-        </label>
-        <div className="models-group">
-          <span className="models-title">Modèle par mode</span>
-          <div className="models-list">
+          <p className="field-hint">
+            Stockée uniquement sur cet appareil (localStorage). Les requêtes partent
+            directement vers l'API OpenAI, sans serveur intermédiaire.
+          </p>
+        </section>
+
+        <section className="field">
+          <span className="field-label">Modèle par mode</span>
+          <div className="card">
             {TASKS.map((t) => (
               <div key={t.id} className="model-row">
                 <span className="model-mode">{t.label}</span>
@@ -452,24 +461,29 @@ function SettingsPanel({
               </div>
             ))}
           </div>
-        </div>
+        </section>
+
         {isDesktop && (
-          <label className="switch-row setting-row">
-            <span>Coller automatiquement le presse-papier à l'ouverture</span>
-            <span className="switch">
-              <input
-                type="checkbox"
-                checked={autoPaste}
-                onChange={(e) => setAutoPaste(e.target.checked)}
-              />
-              <span className="slider" />
-            </span>
-          </label>
+          <section className="field">
+            <span className="field-label">Comportement</span>
+            <div className="card">
+              <label className="option-row">
+                <span className="option-text">
+                  Coller automatiquement le presse-papier à l'ouverture
+                </span>
+                <span className="switch">
+                  <input
+                    type="checkbox"
+                    checked={autoPaste}
+                    onChange={(e) => setAutoPaste(e.target.checked)}
+                  />
+                  <span className="slider" />
+                </span>
+              </label>
+            </div>
+          </section>
         )}
-        <p className="hint">
-          La clé est stockée uniquement sur cet appareil (localStorage) et n'est envoyée qu'à
-          l'API OpenAI.
-        </p>
+
         <div className="panel-actions">
           <button className="ghost-btn" onClick={onClose}>
             Annuler
