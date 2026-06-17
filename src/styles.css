@@ -1,4 +1,5 @@
 :root {
+  /* ---- Couleurs ---- */
   --bg: #ffffff;
   --fg: #171717;
   --muted: #666666;
@@ -10,7 +11,42 @@
   --error-fg: #e5484d;
   --ok-fg: #1a7f37;
   --ok-bg: #e6f4ea;
-  --radius: 10px;
+  --hover: #f5f5f5;
+
+  /* ---- Échelle typographique ----
+     5 niveaux, du plus discret (légendes) au titre. On ne pioche que
+     là-dedans pour garder une hiérarchie cohérente. */
+  --text-xs: 11px;   /* légendes, pieds de page, intitulés de section */
+  --text-sm: 12px;   /* libellés secondaires, pilules */
+  --text-base: 13px; /* boutons, onglets, champs */
+  --text-md: 14px;   /* texte courant (saisie, sortie) */
+  --text-lg: 15px;   /* titres */
+
+  /* ---- Graisses ---- */
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---- Interlignage ---- */
+  --leading-tight: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* ---- Espacement (base 4 px) ----
+     Toutes les marges/paddings sont des multiples de 4 pour un rythme
+     vertical régulier. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ---- Rayons ---- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+
   font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 
@@ -28,7 +64,8 @@ body,
 body {
   background: var(--bg);
   color: var(--fg);
-  font-size: 14px;
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   /* iPhone : pas de surbrillance bleue au tap, pas de rebond élastique,
      pas de zoom au double-tap (le pinch est bloqué via le viewport). */
@@ -56,8 +93,9 @@ body {
   justify-content: space-between;
   /* Décale le contenu hors de l'encoche / des bords arrondis sur iPhone.
      env(safe-area-inset-*) vaut 0 hors iOS → padding inchangé sur desktop. */
-  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-    12px max(16px, env(safe-area-inset-left));
+  padding: max(var(--space-3), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right)) var(--space-3)
+    max(var(--space-4), env(safe-area-inset-left));
   border-bottom: 1px solid var(--border);
   user-select: none;
 }
@@ -65,9 +103,9 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
   letter-spacing: -0.01em;
 }
 
@@ -80,37 +118,38 @@ body {
 
 .icon-btn {
   display: flex;
-  padding: 6px;
+  padding: var(--space-2);
   border: none;
   background: none;
   color: var(--muted);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
 .icon-btn:hover {
-  background: #f5f5f5;
+  background: var(--hover);
   color: var(--fg);
 }
 
 /* ---- Tabs ---- */
 .tabs {
   display: flex;
-  gap: 4px;
-  padding: 10px 16px 0;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) 0;
   border-bottom: 1px solid var(--border);
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 12px 10px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   border: none;
   background: none;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -135,9 +174,9 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px max(16px, env(safe-area-inset-right)) 16px
-    max(16px, env(safe-area-inset-left));
+  gap: var(--space-4);
+  padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right))
+    var(--space-4) max(var(--space-4), env(safe-area-inset-left));
   overflow-y: auto;
   /* Défilement fluide et sans rebond parasite sur iOS. */
   -webkit-overflow-scrolling: touch;
@@ -147,7 +186,7 @@ body {
 .input-zone {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 textarea {
@@ -156,10 +195,11 @@ textarea {
   max-height: 260px;
   resize: none;
   overflow-y: hidden;
-  padding: 12px;
+  padding: var(--space-3);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   font: inherit;
+  line-height: var(--leading-normal);
   color: inherit;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -172,7 +212,7 @@ textarea:focus {
 
 .input-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
@@ -180,33 +220,33 @@ textarea:focus {
 .lang-select {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
 .lang-label {
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   color: var(--muted);
 }
 
 .lang-options {
   display: flex;
-  gap: 4px;
-  padding: 3px;
-  background: #f5f5f5;
-  border-radius: 8px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--hover);
+  border-radius: var(--radius-md);
 }
 
 .lang-pill {
-  padding: 5px 12px;
+  padding: var(--space-1) var(--space-3);
   border: none;
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -225,14 +265,14 @@ textarea:focus {
 .primary-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--accent-fg);
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: opacity 0.15s;
 }
@@ -252,7 +292,7 @@ textarea:focus {
 }
 
 .primary-btn kbd {
-  font-size: 10px;
+  font-size: 0.78em;
   opacity: 0.6;
   font-family: inherit;
 }
@@ -260,14 +300,14 @@ textarea:focus {
 .ghost-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
   background: var(--bg);
   color: var(--fg);
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -298,23 +338,23 @@ textarea:focus {
 .output-zone {
   position: relative;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: #fafafa;
-  padding: 12px;
+  padding: var(--space-3);
 }
 
 .output-header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 10px;
-  margin-bottom: 18px;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 .output-text {
   white-space: pre-wrap;
-  line-height: 1.6;
-  font-size: 13.5px;
+  line-height: var(--leading-relaxed);
+  font-size: var(--text-md);
   min-height: 44px;
 }
 
@@ -322,8 +362,8 @@ textarea:focus {
 .output-empty {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding-top: 3px;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
 }
 
 .skeleton-line {
@@ -349,9 +389,9 @@ textarea:focus {
 .switch-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
-  font-weight: 500;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
@@ -429,14 +469,14 @@ textarea:focus {
 
 .diff-empty {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-style: italic;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .output-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   margin-left: auto;
 }
 
@@ -456,31 +496,32 @@ textarea:focus {
 }
 
 .error {
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
   background: var(--error-bg);
   color: var(--error-fg);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* ---- Footer ---- */
 .footer {
   /* Évite la barre d'accueil iPhone (home indicator). */
-  padding: 8px max(16px, env(safe-area-inset-right))
-    max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: var(--space-2) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-2), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
   border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   user-select: none;
 }
 
 .footer kbd {
   font-family: inherit;
-  background: #f5f5f5;
+  background: var(--hover);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 1px 5px;
-  font-size: 10.5px;
+  font-size: 0.92em;
 }
 
 /* ---- Settings overlay ---- */
@@ -495,46 +536,46 @@ textarea:focus {
 }
 
 .panel {
-  width: min(420px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
   background: var(--bg);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 
 .panel h2 {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
 }
 
 /* Chaque réglage = une section : intitulé au-dessus, contrôle en dessous. */
 .field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--space-2);
 }
 
 .field-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .field-hint {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 
 .panel input {
-  padding: 9px 11px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   font: inherit;
   color: var(--fg);
   outline: none;
@@ -549,7 +590,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -561,26 +602,26 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
 }
 
 .model-mode {
   flex-shrink: 0;
   width: 92px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   color: var(--fg);
 }
 
 .model-row select {
   flex: 1;
   min-width: 0;
-  padding: 7px 9px;
+  padding: var(--space-2);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--fg);
   background: var(--bg);
   outline: none;
@@ -597,22 +638,23 @@ textarea:focus {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
   cursor: pointer;
 }
 
 .option-text {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--fg);
-  line-height: 1.35;
+  line-height: var(--leading-tight);
 }
 
 .panel-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 /* ---- Tactile (iPhone, tablettes) ---- */
@@ -629,21 +671,21 @@ textarea:focus {
   /* Cibles de tap plus généreuses au doigt. */
   .primary-btn,
   .ghost-btn {
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
   }
 
   .lang-pill {
-    padding-top: 9px;
-    padding-bottom: 9px;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
   }
 
   .tab {
-    padding-top: 10px;
-    padding-bottom: 12px;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
   }
 
   .icon-btn {
-    padding: 9px;
+    padding: var(--space-2);
   }
 }
