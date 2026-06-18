@@ -19,9 +19,16 @@ const SAFETY =
 /**
  * Clause de langue : interdit toute traduction pour les tâches qui doivent
  * rester dans la langue d'origine (correction, reformulation).
+ *
+ * Le prompt étant entièrement rédigé en français, le modèle a tendance à
+ * répondre en français même quand le texte d'entrée est dans une autre langue
+ * (« inertie de langue »). La clause est donc formulée pour interdire
+ * explicitement ce réflexe, et elle est volontairement placée EN DERNIER dans
+ * chaque prompt (effet de récence) : c'est la consigne la plus proche du texte
+ * à traiter, donc celle à laquelle le modèle accorde le plus de poids.
  */
 const SAME_LANG =
-  "RÈGLE ABSOLUE : réponds impérativement dans la même langue que le texte d'entrée et ne traduis jamais, même partiellement — si le texte est en anglais, la réponse reste en anglais ; en allemand, elle reste en allemand ; etc.";
+  "RÈGLE PRIORITAIRE, AU-DESSUS DE TOUTES LES AUTRES : rédige ta réponse dans la langue EXACTE du texte fourni et ne traduis jamais, même partiellement. Commence par déterminer la langue du texte, puis rédige toute ta réponse dans cette langue. Ces consignes sont en français, mais cela ne doit JAMAIS te faire répondre en français : si le texte d'entrée est en anglais, réponds en anglais ; en espagnol, en espagnol ; en allemand, en allemand ; etc.";
 
 /**
  * Clause typographique : proscrit les tirets longs « façon IA » (cadratin et
@@ -44,9 +51,9 @@ export const TASKS: Task[] = [
     label: "Corriger",
     system:
       "Tu es un correcteur professionnel. Corrige uniquement l'orthographe, la grammaire, la conjugaison, la ponctuation et la typographie du texte fourni. " +
-      `${SAME_LANG} ${NO_FANCY_DASH} ` +
+      `${NO_FANCY_DASH} ` +
       "Préserve le sens, le ton, le style, les sauts de ligne et la mise en forme. " +
-      `${SAFETY} ${outputContract("le texte corrigé")}`,
+      `${SAFETY} ${outputContract("le texte corrigé")} ${SAME_LANG}`,
     placeholder: "Colle le texte à corriger…",
   },
   {
@@ -60,9 +67,9 @@ export const TASKS: Task[] = [
     label: "Reformuler",
     system:
       "Tu es un assistant de rédaction. Reformule le texte fourni pour le rendre plus clair, fluide et professionnel, sans en changer le sens ni la longueur de manière significative. " +
-      `${SAME_LANG} ${NO_FANCY_DASH} ` +
+      `${NO_FANCY_DASH} ` +
       "Si le texte d'entrée contient des tirets cadratins ou demi-cadratins, reformule pour les supprimer. " +
-      `${SAFETY} ${outputContract("le texte reformulé")}`,
+      `${SAFETY} ${outputContract("le texte reformulé")} ${SAME_LANG}`,
     placeholder: "Colle le texte à reformuler…",
   },
 ];
