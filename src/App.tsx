@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TASKS, Task, TRANSLATE_LANGS, translateSystem } from "./lib/tasks";
+import {
+  TASKS,
+  Task,
+  TRANSLATE_LANGS,
+  translateSystem,
+  REPHRASE_TONES,
+  rephraseSystem,
+} from "./lib/tasks";
 import {
   loadSettings,
   saveSettings,
@@ -32,6 +39,10 @@ export default function App() {
     const code = loadPrefs().targetLang;
     return TRANSLATE_LANGS.some((l) => l.code === code) ? code : TRANSLATE_LANGS[0].code;
   });
+  const [tone, setTone] = useState<string>(() => {
+    const code = loadPrefs().tone;
+    return REPHRASE_TONES.some((t) => t.code === code) ? code : REPHRASE_TONES[0].code;
+  });
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   // Texte effectivement envoyé pour la dernière correction, figé au lancement
@@ -53,10 +64,10 @@ export default function App() {
     autoPasteRef.current = settings.autoPaste;
   }, [settings.autoPaste]);
 
-  // Mémorise le dernier onglet et la dernière langue de traduction.
+  // Mémorise le dernier onglet, la dernière langue de traduction et le ton.
   useEffect(() => {
-    savePrefs({ task: task.id, targetLang });
-  }, [task.id, targetLang]);
+    savePrefs({ task: task.id, targetLang, tone });
+  }, [task.id, targetLang, tone]);
 
   useEffect(() => {
     // À l'affichage de la fenêtre (raccourci global), on pré-remplit le champ
@@ -120,7 +131,9 @@ export default function App() {
               TRANSLATE_LANGS.find((l) => l.code === targetLang)?.name ??
                 TRANSLATE_LANGS[0].name,
             )
-          : task.system;
+          : task.id === "rephrase"
+            ? rephraseSystem(tone)
+            : task.system;
       const model = settings.models[task.id] || DEFAULT_MODELS[task.id] || FALLBACK_MODEL;
       await streamCompletion(
         settings.apiKey,
@@ -245,16 +258,32 @@ export default function App() {
       <main className="main">
         <div className="input-zone">
           {task.id === "translate" && (
-            <div className="lang-select">
-              <span className="lang-label">Traduire vers</span>
-              <div className="lang-options">
+            <div className="pill-select">
+              <span className="pill-select-label">Traduire vers</span>
+              <div className="pill-options">
                 {TRANSLATE_LANGS.map((l) => (
                   <button
                     key={l.code}
-                    className={`lang-pill ${l.code === targetLang ? "active" : ""}`}
+                    className={`pill ${l.code === targetLang ? "active" : ""}`}
                     onClick={() => setTargetLang(l.code)}
                   >
                     {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {task.id === "rephrase" && (
+            <div className="pill-select">
+              <span className="pill-select-label">Ton</span>
+              <div className="pill-options">
+                {REPHRASE_TONES.map((t) => (
+                  <button
+                    key={t.code}
+                    className={`pill ${t.code === tone ? "active" : ""}`}
+                    onClick={() => setTone(t.code)}
+                  >
+                    {t.label}
                   </button>
                 ))}
               </div>

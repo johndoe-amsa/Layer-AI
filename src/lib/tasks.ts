@@ -45,6 +45,50 @@ function outputContract(noun: string): string {
   return `Réponds UNIQUEMENT avec ${noun}, sans commentaire, sans guillemets et sans formatage Markdown.`;
 }
 
+/** Tons proposés pour la reformulation. */
+export interface RephraseTone {
+  /** Code court mémorisé dans les préférences. */
+  code: string;
+  /** Libellé affiché sur la pilule. */
+  label: string;
+  /** Consigne de ton injectée dans le prompt système (en français). */
+  instruction: string;
+}
+
+/* Déclaré avant TASKS : rephraseSystem y est appelé dès l'initialisation. */
+export const REPHRASE_TONES: RephraseTone[] = [
+  {
+    code: "standard",
+    label: "Standard",
+    instruction:
+      "Rends-le plus clair, fluide et professionnel, sans en changer la longueur de manière significative.",
+  },
+  {
+    code: "shorter",
+    label: "Plus court",
+    instruction:
+      "Rends-le nettement plus court : supprime les redondances, le superflu et les formules creuses, en conservant toutes les informations importantes.",
+  },
+  {
+    code: "longer",
+    label: "Plus long",
+    instruction:
+      "Rends-le nettement plus long : développe et étoffe les idées présentes, ajoute des précisions et des transitions utiles, sans jamais inventer d'informations qui ne sont pas dans le texte.",
+  },
+  {
+    code: "formal",
+    label: "Plus formel",
+    instruction:
+      "Rends-le plus formel : registre soutenu et professionnel, formules de politesse adaptées, sans en changer la longueur de manière significative.",
+  },
+  {
+    code: "simpler",
+    label: "Plus simple",
+    instruction:
+      "Rends-le plus simple : vocabulaire courant, phrases courtes, aucun jargon, compréhensible par tous.",
+  },
+];
+
 export const TASKS: Task[] = [
   {
     id: "fix",
@@ -65,14 +109,26 @@ export const TASKS: Task[] = [
   {
     id: "rephrase",
     label: "Reformuler",
-    system:
-      "Tu es un assistant de rédaction. Reformule le texte fourni pour le rendre plus clair, fluide et professionnel, sans en changer le sens ni la longueur de manière significative. " +
-      `${NO_FANCY_DASH} ` +
-      "Si le texte d'entrée contient des tirets cadratins ou demi-cadratins, reformule pour les supprimer. " +
-      `${SAFETY} ${outputContract("le texte reformulé")} ${SAME_LANG}`,
+    system: rephraseSystem("standard"),
     placeholder: "Colle le texte à reformuler…",
   },
 ];
+
+/**
+ * Construit le prompt système de reformulation selon le ton choisi.
+ * Un code inconnu retombe sur le ton standard.
+ */
+export function rephraseSystem(toneCode: string): string {
+  const tone =
+    REPHRASE_TONES.find((t) => t.code === toneCode) ?? REPHRASE_TONES[0];
+  return (
+    "Tu es un assistant de rédaction. Reformule le texte fourni sans en changer le sens. " +
+    `${tone.instruction} ` +
+    `${NO_FANCY_DASH} ` +
+    "Si le texte d'entrée contient des tirets cadratins ou demi-cadratins, reformule pour les supprimer. " +
+    `${SAFETY} ${outputContract("le texte reformulé")} ${SAME_LANG}`
+  );
+}
 
 /** Langues de sortie proposées pour la traduction. */
 export interface TranslateLang {

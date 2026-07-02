@@ -57,11 +57,13 @@ export interface Prefs {
   task: string;
   /** Code de la dernière langue de traduction choisie. */
   targetLang: string;
+  /** Code du dernier ton de reformulation choisi. */
+  tone: string;
 }
 
 const PREFS_KEY = "layer-ai-prefs";
 
-const DEFAULT_PREFS: Prefs = { task: "fix", targetLang: "fr" };
+const DEFAULT_PREFS: Prefs = { task: "fix", targetLang: "fr", tone: "standard" };
 
 export function loadPrefs(): Prefs {
   try {
