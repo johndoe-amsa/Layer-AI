@@ -70,6 +70,12 @@ export const REPHRASE_TONES: RephraseTone[] = [
       "Rends-le nettement plus court : supprime les redondances, le superflu et les formules creuses, en conservant toutes les informations importantes.",
   },
   {
+    code: "longer",
+    label: "Plus long",
+    instruction:
+      "Rends-le nettement plus long : développe et étoffe les idées présentes, ajoute des précisions et des transitions utiles, sans jamais inventer d'informations qui ne sont pas dans le texte.",
+  },
+  {
     code: "formal",
     label: "Plus formel",
     instruction:
@@ -80,12 +86,6 @@ export const REPHRASE_TONES: RephraseTone[] = [
     label: "Plus simple",
     instruction:
       "Rends-le plus simple : vocabulaire courant, phrases courtes, aucun jargon, compréhensible par tous.",
-  },
-  {
-    code: "direct",
-    label: "Plus direct",
-    instruction:
-      "Rends-le plus direct : va droit au but, privilégie la voix active et supprime les détours et formules d'atténuation, quitte à le raccourcir.",
   },
 ];
 
