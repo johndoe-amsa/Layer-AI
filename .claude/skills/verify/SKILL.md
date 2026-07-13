@@ -41,7 +41,8 @@ Deux astuces indispensables :
 
 - Onglets Corriger/Traduire/Reformuler : saisie → Lancer → sortie streamée ;
   le message utilisateur est délimité par `<<< … >>>`.
-- Onglet Répondre : blocs de conversation (pilules Reçu/Moi, ajout/suppression,
-  ordre interface = du plus récent au plus ancien, remis en chronologique dans
-  le prompt), consigne, profil des réglages injecté dans le prompt système.
+- Onglet Répondre : blocs de conversation numérotés en ordre chronologique
+  (1 = plus ancien ; le bouton d'ajout insère en tête ; pilules Reçu/Moi ;
+  blocs repliés hors focus), consigne, profil des réglages injecté dans le
+  prompt système, bouton « Reprendre et reformuler » vers l'onglet Reformuler.
 - Réglages : engrenage en haut à droite, sauvegarde dans localStorage.

@@ -206,15 +206,14 @@ export function replySystem(profile: string): string {
 
 /**
  * Construit le message utilisateur de l'onglet « Répondre ».
- * `messages` arrive dans l'ordre de l'interface (du plus récent au plus
- * ancien) ; il est remis en ordre chronologique, plus lisible pour le modèle.
- * Les blocs vides sont ignorés.
+ * `messages` arrive dans l'ordre de l'interface, qui est déjà l'ordre
+ * chronologique (le dernier est celui auquel répondre). Les blocs vides
+ * sont ignorés.
  */
 export function replyUserMessage(messages: ReplyMessage[], instruction: string): string {
   const thread = messages
     .map((m) => ({ ...m, text: m.text.trim() }))
-    .filter((m) => m.text)
-    .reverse();
+    .filter((m) => m.text);
   const parts = thread.length
     ? [
         "CONVERSATION (en ordre chronologique) :",

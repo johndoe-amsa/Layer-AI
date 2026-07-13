@@ -28,6 +28,13 @@ import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop
 /** Hauteur maximale (px) de la zone de texte avant l'apparition du scroll. */
 const MAX_TEXTAREA_HEIGHT = 260;
 
+/**
+ * Hauteur (px) d'un message de conversation replié (~3 lignes). Les blocs
+ * remplis se replient hors focus pour garder la réponse à portée d'écran,
+ * même avec une longue conversation collée.
+ */
+const COLLAPSED_MSG_HEIGHT = 72;
+
 const TASK_ICONS: Record<string, () => JSX.Element> = {
   fix: CheckCircleIcon,
   translate: GlobeIcon,
@@ -72,7 +79,8 @@ export default function App() {
     return REPHRASE_TONES.some((t) => t.code === code) ? code : REPHRASE_TONES[0].code;
   });
   const [input, setInput] = useState("");
-  // Conversation de l'onglet « Répondre », du plus récent au plus ancien.
+  // Conversation de l'onglet « Répondre », en ordre chronologique : le
+  // dernier bloc est le message auquel répondre.
   const [thread, setThread] = useState<ThreadMsg[]>([{ id: 0, from: "them", text: "" }]);
   const msgIdRef = useRef(1);
   const [output, setOutput] = useState("");
@@ -87,6 +95,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const outputZoneRef = useRef<HTMLDivElement>(null);
   // Reflète le réglage autoPaste pour le handler d'ouverture (enregistré une
   // seule fois), sans le figer sur une valeur périmée.
   const autoPasteRef = useRef(settings.autoPaste);
@@ -116,13 +125,14 @@ export default function App() {
         const clip = cleanInput(await readClipboard());
         if (clip && taskRef.current === "reply") {
           // En mode Répondre, le presse-papier est très probablement le mail
-          // auquel répondre : on remplit le premier bloc de conversation s'il
-          // est libre, sans jamais écraser une saisie en cours.
-          setThread((prev) =>
-            prev[0] && !prev[0].text.trim()
-              ? [{ ...prev[0], text: clip }, ...prev.slice(1)]
-              : prev,
-          );
+          // auquel répondre : on remplit le dernier bloc de conversation (le
+          // plus récent) s'il est libre, sans jamais écraser une saisie.
+          setThread((prev) => {
+            const last = prev[prev.length - 1];
+            return last && !last.text.trim()
+              ? [...prev.slice(0, -1), { ...last, text: clip }]
+              : prev;
+          });
         } else if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
           setOutput("");
@@ -170,6 +180,13 @@ export default function App() {
     setOutput("");
     setShowDiff(false);
     setSourceText(text);
+    // En mode Répondre, la conversation peut occuper tout l'écran : on amène
+    // la zone de réponse en vue dès le lancement.
+    if (task.id === "reply") {
+      requestAnimationFrame(() =>
+        outputZoneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
     abortRef.current = new AbortController();
     try {
       const system =
@@ -247,16 +264,17 @@ export default function App() {
     });
   }
 
-  // Ajoute un message plus ancien, en alternant l'expéditeur par rapport au
-  // bloc précédent : dans un échange, les tours de parole se succèdent.
+  // Insère un message plus ancien en tête de conversation, en alternant
+  // l'expéditeur par rapport au bloc suivant : dans un échange, les tours
+  // de parole se succèdent.
   function addMsg() {
     setThread((prev) => [
-      ...prev,
       {
         id: msgIdRef.current++,
-        from: prev[prev.length - 1]?.from === "them" ? "me" : "them",
+        from: prev[0]?.from === "them" ? "me" : "them",
         text: "",
       },
+      ...prev,
     ]);
   }
 
@@ -283,6 +301,19 @@ export default function App() {
     setError("");
     // La sortie disparaît : on quitte l'affichage des modifications pour ne pas
     // diffuser l'ancien texte source contre une sortie vide (tout en rouge).
+    setShowDiff(false);
+    inputRef.current?.focus();
+  }
+
+  // Envoie la réponse générée dans l'onglet Reformuler pour la retravailler
+  // (bouton « Reprendre et reformuler » du mode Répondre).
+  function reuseIntoRephrase() {
+    const rephrase = TASKS.find((t) => t.id === "rephrase");
+    if (!rephrase) return;
+    setTask(rephrase);
+    setInput(output);
+    setOutput("");
+    setError("");
     setShowDiff(false);
     inputRef.current?.focus();
   }
@@ -378,27 +409,37 @@ export default function App() {
               <div className="section-head">
                 <span className="pill-select-label">Conversation</span>
                 <span className="section-hint">
-                  Du plus récent au plus ancien. Marque « Moi » tes propres messages :
-                  la réponse imitera ta façon d'écrire.
+                  Dans l'ordre de l'échange : le dernier message est celui auquel tu
+                  réponds. Marque « Moi » tes propres messages : la réponse imitera ta
+                  façon d'écrire.
                 </span>
               </div>
               <div className="thread">
-                {thread.map((m) => (
+                <button className="ghost-btn add-msg" onClick={addMsg}>
+                  <PlusIcon />
+                  Ajouter un message plus ancien
+                </button>
+                {thread.map((m, i) => (
                   <div className="msg" key={m.id}>
                     <div className="msg-head">
-                      <div className="pill-options">
-                        <button
-                          className={`pill ${m.from === "them" ? "active" : ""}`}
-                          onClick={() => updateMsg(m.id, { from: "them" })}
-                        >
-                          Reçu
-                        </button>
-                        <button
-                          className={`pill ${m.from === "me" ? "active" : ""}`}
-                          onClick={() => updateMsg(m.id, { from: "me" })}
-                        >
-                          Moi
-                        </button>
+                      <div className="msg-id">
+                        <span className="msg-num" title={`Message ${i + 1} de la conversation`}>
+                          {i + 1}
+                        </span>
+                        <div className="pill-options">
+                          <button
+                            className={`pill ${m.from === "them" ? "active" : ""}`}
+                            onClick={() => updateMsg(m.id, { from: "them" })}
+                          >
+                            Reçu
+                          </button>
+                          <button
+                            className={`pill ${m.from === "me" ? "active" : ""}`}
+                            onClick={() => updateMsg(m.id, { from: "me" })}
+                          >
+                            Moi
+                          </button>
+                        </div>
                       </div>
                       <div className="msg-tools">
                         <button
@@ -431,10 +472,6 @@ export default function App() {
                     />
                   </div>
                 ))}
-                <button className="ghost-btn add-msg" onClick={addMsg}>
-                  <PlusIcon />
-                  Ajouter un message plus ancien
-                </button>
               </div>
               <span className="pill-select-label">Consigne</span>
             </>
@@ -485,7 +522,7 @@ export default function App() {
 
         {error && <div className="error">{error}</div>}
 
-        <div className="output-zone">
+        <div className="output-zone" ref={outputZoneRef}>
           <div className="output-header">
             {task.id === "fix" && (
               <label className="switch-row">
@@ -502,9 +539,19 @@ export default function App() {
               </label>
             )}
             <div className="output-actions">
-              {/* Reprendre n'a pas de sens en mode Répondre : la sortie est un
-                  mail, pas un texte à retraiter comme entrée. */}
-              {task.id !== "reply" && (
+              {/* En mode Répondre, la sortie est un mail : on ne la reprend pas
+                  comme nouvelle entrée, on l'envoie vers l'onglet Reformuler. */}
+              {task.id === "reply" ? (
+                <button
+                  className="ghost-btn"
+                  onClick={reuseIntoRephrase}
+                  disabled={!output || busy}
+                  title="Reprendre cette réponse dans l'onglet Reformuler"
+                >
+                  <RefreshIcon />
+                  Reprendre et reformuler
+                </button>
+              ) : (
                 <button
                   className="ghost-btn"
                   onClick={reuseOutput}
@@ -592,33 +639,54 @@ export default function App() {
 /**
  * Zone de texte contrôlée à hauteur automatique (même comportement que la
  * zone de saisie principale) avec nettoyage du collage. Utilisée pour les
- * messages de la conversation de l'onglet « Répondre ».
+ * messages de la conversation de l'onglet « Répondre » : remplie et hors
+ * focus, elle se replie à COLLAPSED_MSG_HEIGHT (avec un fondu) et se déplie
+ * au clic, pour que quatre mails collés ne repoussent pas la réponse hors
+ * de l'écran.
  */
 function GrowingTextarea({
   value,
   onValueChange,
+  className,
+  onFocus,
+  onBlur,
   ...rest
 }: {
   value: string;
   onValueChange: (value: string) => void;
 } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange">) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
+  // Le fondu n'apparaît que si le repli masque réellement du contenu.
+  const [truncated, setTruncated] = useState(false);
+  const collapsed = !focused && value.trim() !== "";
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     const full = el.scrollHeight;
-    el.style.height = `${Math.min(full, MAX_TEXTAREA_HEIGHT)}px`;
-    el.style.overflowY = full > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
-  }, [value]);
+    const cap = collapsed ? COLLAPSED_MSG_HEIGHT : MAX_TEXTAREA_HEIGHT;
+    el.style.height = `${Math.min(full, cap)}px`;
+    el.style.overflowY = !collapsed && full > cap ? "auto" : "hidden";
+    setTruncated(collapsed && full > cap);
+  }, [value, collapsed]);
 
   return (
     <textarea
       ref={ref}
       value={value}
+      className={`${className ?? ""} ${truncated ? "collapsed" : ""}`}
       onChange={(e) => onValueChange(e.target.value)}
       onPaste={(e) => pasteCleaned(e, value, onValueChange)}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
       spellCheck={false}
       {...rest}
     />
