@@ -29,11 +29,13 @@ import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop
 const MAX_TEXTAREA_HEIGHT = 260;
 
 /**
- * Hauteur (px) d'un message de conversation replié (~3 lignes). Les blocs
- * remplis se replient hors focus pour garder la réponse à portée d'écran,
- * même avec une longue conversation collée.
+ * Hauteur maximale (px) d'un message de conversation : plus basse que la
+ * zone principale pour que plusieurs mails collés restent compacts (le
+ * contenu défile à l'intérieur du bloc). Fixe quel que soit le focus : une
+ * hauteur qui changerait au blur ferait bouger les boutons situés dessous
+ * au moment précis où l'on clique dessus.
  */
-const COLLAPSED_MSG_HEIGHT = 72;
+const MSG_MAX_HEIGHT = 150;
 
 const TASK_ICONS: Record<string, () => JSX.Element> = {
   fix: CheckCircleIcon,
@@ -79,10 +81,13 @@ export default function App() {
     return REPHRASE_TONES.some((t) => t.code === code) ? code : REPHRASE_TONES[0].code;
   });
   const [input, setInput] = useState("");
-  // Conversation de l'onglet « Répondre », en ordre chronologique : le
-  // dernier bloc est le message auquel répondre.
+  // Conversation de l'onglet « Répondre », du plus récent au plus ancien :
+  // le premier bloc est le message auquel répondre.
   const [thread, setThread] = useState<ThreadMsg[]>([{ id: 0, from: "them", text: "" }]);
   const msgIdRef = useRef(1);
+  // Menu déroulant de la conversation : ouvert pendant la préparation, replié
+  // automatiquement au lancement pour ne garder que la réponse et la consigne.
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [output, setOutput] = useState("");
   // Texte effectivement envoyé pour la dernière correction, figé au lancement
   // afin que le diff reste cohérent même si l'entrée est modifiée ensuite.
@@ -125,13 +130,12 @@ export default function App() {
         const clip = cleanInput(await readClipboard());
         if (clip && taskRef.current === "reply") {
           // En mode Répondre, le presse-papier est très probablement le mail
-          // auquel répondre : on remplit le dernier bloc de conversation (le
+          // auquel répondre : on remplit le premier bloc de conversation (le
           // plus récent) s'il est libre, sans jamais écraser une saisie.
           setThread((prev) => {
-            const last = prev[prev.length - 1];
-            return last && !last.text.trim()
-              ? [...prev.slice(0, -1), { ...last, text: clip }]
-              : prev;
+            if (!prev[0] || prev[0].text.trim()) return prev;
+            setHistoryOpen(true);
+            return [{ ...prev[0], text: clip }, ...prev.slice(1)];
           });
         } else if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
@@ -180,9 +184,11 @@ export default function App() {
     setOutput("");
     setShowDiff(false);
     setSourceText(text);
-    // En mode Répondre, la conversation peut occuper tout l'écran : on amène
-    // la zone de réponse en vue dès le lancement.
+    // En mode Répondre : on replie la conversation dans son menu déroulant
+    // (il ne reste que la réponse et la consigne à l'écran) et on ramène la
+    // zone de réponse en vue.
     if (task.id === "reply") {
+      if (thread.some((m) => m.text.trim())) setHistoryOpen(false);
       requestAnimationFrame(() =>
         outputZoneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
@@ -264,17 +270,17 @@ export default function App() {
     });
   }
 
-  // Insère un message plus ancien en tête de conversation, en alternant
-  // l'expéditeur par rapport au bloc suivant : dans un échange, les tours
-  // de parole se succèdent.
+  // Ajoute un message plus ancien en fin de liste, en alternant l'expéditeur
+  // par rapport au bloc précédent : dans un échange, les tours de parole se
+  // succèdent.
   function addMsg() {
     setThread((prev) => [
+      ...prev,
       {
         id: msgIdRef.current++,
-        from: prev[0]?.from === "them" ? "me" : "them",
+        from: prev[prev.length - 1]?.from === "them" ? "me" : "them",
         text: "",
       },
-      ...prev,
     ]);
   }
 
@@ -285,6 +291,7 @@ export default function App() {
 
   function resetThread() {
     setThread([{ id: msgIdRef.current++, from: "them", text: "" }]);
+    setHistoryOpen(true);
   }
 
   async function copyOutput() {
@@ -336,6 +343,100 @@ export default function App() {
   const hasChanges =
     diffSegments?.some((s) => s.op !== "equal" && !/^\s+$/.test(s.text)) ?? false;
 
+  const filledCount = thread.filter((m) => m.text.trim()).length;
+
+  // Zone de réponse, extraite pour être placée en tête en mode Répondre
+  // (la réponse reste ainsi visible sans scroller) et en bas ailleurs.
+  const outputZone = (
+    <div className="output-zone" ref={outputZoneRef}>
+      <div className="output-header">
+        {task.id === "fix" && (
+          <label className="switch-row">
+            <span>Modifications</span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={showDiff}
+                disabled={!output || busy}
+                onChange={(e) => setShowDiff(e.target.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+        )}
+        <div className="output-actions">
+          {/* En mode Répondre, la sortie est un mail : on ne la reprend pas
+              comme nouvelle entrée, on l'envoie vers l'onglet Reformuler. */}
+          {task.id === "reply" ? (
+            <button
+              className="ghost-btn"
+              onClick={reuseIntoRephrase}
+              disabled={!output || busy}
+              title="Reprendre cette réponse dans l'onglet Reformuler"
+            >
+              <RefreshIcon />
+              Reprendre et reformuler
+            </button>
+          ) : (
+            <button
+              className="ghost-btn"
+              onClick={reuseOutput}
+              disabled={!output || busy}
+              title="Reprendre ce texte comme nouvelle entrée"
+            >
+              <ReuseIcon />
+              Reprendre
+            </button>
+          )}
+          <button
+            className="ghost-btn"
+            onClick={copyOutput}
+            disabled={!output || busy}
+          >
+            <CopyIcon />
+            {copied ? "Copié ✓" : "Copier"}
+          </button>
+        </div>
+      </div>
+      {showDiff && diffSegments ? (
+        <div className="output-text">
+          {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
+          {diffSegments.map((s, k) => {
+            // Changements d'espaces seuls : on les affiche sans surlignage
+            // (insertion en clair, suppression masquée) pour ne garder en
+            // couleur que les vraies modifications de mots.
+            const isSpace = /^\s+$/.test(s.text);
+            if (s.op === "equal" || (isSpace && s.op === "insert")) {
+              return <span key={k}>{s.text}</span>;
+            }
+            if (isSpace) return null;
+            return s.op === "insert" ? (
+              <ins key={k} className="diff-ins">
+                {s.text}
+              </ins>
+            ) : (
+              <del key={k} className="diff-del">
+                {s.text}
+              </del>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="output-text">
+          {output}
+          {!output && !busy && (
+            <div className="output-empty" aria-hidden="true">
+              <span className="skeleton-line" />
+              <span className="skeleton-line" />
+              <span className="skeleton-line" />
+            </div>
+          )}
+          {busy && <span className="cursor" />}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="app">
       <header className="header" data-tauri-drag-region>
@@ -371,6 +472,14 @@ export default function App() {
       </nav>
 
       <main className="main">
+        {/* Mode Répondre : la réponse d'abord (toujours visible sans scroller),
+            puis la consigne, puis la conversation repliable. */}
+        {task.id === "reply" && (
+          <>
+            {outputZone}
+            {error && <div className="error">{error}</div>}
+          </>
+        )}
         <div className="input-zone">
           {task.id === "translate" && (
             <div className="pill-select">
@@ -404,78 +513,7 @@ export default function App() {
               </div>
             </div>
           )}
-          {task.id === "reply" && (
-            <>
-              <div className="section-head">
-                <span className="pill-select-label">Conversation</span>
-                <span className="section-hint">
-                  Dans l'ordre de l'échange : le dernier message est celui auquel tu
-                  réponds. Marque « Moi » tes propres messages : la réponse imitera ta
-                  façon d'écrire.
-                </span>
-              </div>
-              <div className="thread">
-                <button className="ghost-btn add-msg" onClick={addMsg}>
-                  <PlusIcon />
-                  Ajouter un message plus ancien
-                </button>
-                {thread.map((m, i) => (
-                  <div className="msg" key={m.id}>
-                    <div className="msg-head">
-                      <div className="msg-id">
-                        <span className="msg-num" title={`Message ${i + 1} de la conversation`}>
-                          {i + 1}
-                        </span>
-                        <div className="pill-options">
-                          <button
-                            className={`pill ${m.from === "them" ? "active" : ""}`}
-                            onClick={() => updateMsg(m.id, { from: "them" })}
-                          >
-                            Reçu
-                          </button>
-                          <button
-                            className={`pill ${m.from === "me" ? "active" : ""}`}
-                            onClick={() => updateMsg(m.id, { from: "me" })}
-                          >
-                            Moi
-                          </button>
-                        </div>
-                      </div>
-                      <div className="msg-tools">
-                        <button
-                          className="icon-btn"
-                          title="Coller le presse-papier dans ce message"
-                          onClick={() => pasteIntoMsg(m.id)}
-                        >
-                          <ClipboardIcon />
-                        </button>
-                        <button
-                          className="icon-btn"
-                          title="Supprimer ce message"
-                          onClick={() => removeMsg(m.id)}
-                          disabled={thread.length === 1 && !m.text}
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </div>
-                    <GrowingTextarea
-                      className="msg-text"
-                      value={m.text}
-                      onValueChange={(v) => updateMsg(m.id, { text: v })}
-                      onKeyDown={onInputKeyDown}
-                      placeholder={
-                        m.from === "them"
-                          ? "Colle ici le message reçu…"
-                          : "Colle ici ton message…"
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-              <span className="pill-select-label">Consigne</span>
-            </>
-          )}
+          {task.id === "reply" && <span className="pill-select-label">Consigne</span>}
           <textarea
             ref={inputRef}
             value={input}
@@ -520,95 +558,102 @@ export default function App() {
           </div>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {task.id !== "reply" && (
+          <>
+            {error && <div className="error">{error}</div>}
+            {outputZone}
+          </>
+        )}
 
-        <div className="output-zone" ref={outputZoneRef}>
-          <div className="output-header">
-            {task.id === "fix" && (
-              <label className="switch-row">
-                <span>Modifications</span>
-                <span className="switch">
-                  <input
-                    type="checkbox"
-                    checked={showDiff}
-                    disabled={!output || busy}
-                    onChange={(e) => setShowDiff(e.target.checked)}
-                  />
-                  <span className="slider" />
+        {task.id === "reply" && (
+          <section className="history">
+            <button
+              className={`history-toggle ${historyOpen ? "open" : ""}`}
+              onClick={() => setHistoryOpen((o) => !o)}
+            >
+              <ChevronIcon />
+              Conversation
+              <span className="history-count">
+                {filledCount === 0
+                  ? "vide"
+                  : filledCount === 1
+                    ? "1 message"
+                    : `${filledCount} messages`}
+              </span>
+            </button>
+            {historyOpen && (
+              <>
+                <span className="section-hint">
+                  Du plus récent au plus ancien : en haut, le message auquel tu réponds.
+                  Marque « Moi » tes propres messages : la réponse imitera ta façon
+                  d'écrire.
                 </span>
-              </label>
-            )}
-            <div className="output-actions">
-              {/* En mode Répondre, la sortie est un mail : on ne la reprend pas
-                  comme nouvelle entrée, on l'envoie vers l'onglet Reformuler. */}
-              {task.id === "reply" ? (
-                <button
-                  className="ghost-btn"
-                  onClick={reuseIntoRephrase}
-                  disabled={!output || busy}
-                  title="Reprendre cette réponse dans l'onglet Reformuler"
-                >
-                  <RefreshIcon />
-                  Reprendre et reformuler
-                </button>
-              ) : (
-                <button
-                  className="ghost-btn"
-                  onClick={reuseOutput}
-                  disabled={!output || busy}
-                  title="Reprendre ce texte comme nouvelle entrée"
-                >
-                  <ReuseIcon />
-                  Reprendre
-                </button>
-              )}
-              <button
-                className="ghost-btn"
-                onClick={copyOutput}
-                disabled={!output || busy}
-              >
-                <CopyIcon />
-                {copied ? "Copié ✓" : "Copier"}
-              </button>
-            </div>
-          </div>
-          {showDiff && diffSegments ? (
-            <div className="output-text">
-              {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
-              {diffSegments.map((s, k) => {
-                // Changements d'espaces seuls : on les affiche sans surlignage
-                // (insertion en clair, suppression masquée) pour ne garder en
-                // couleur que les vraies modifications de mots.
-                const isSpace = /^\s+$/.test(s.text);
-                if (s.op === "equal" || (isSpace && s.op === "insert")) {
-                  return <span key={k}>{s.text}</span>;
-                }
-                if (isSpace) return null;
-                return s.op === "insert" ? (
-                  <ins key={k} className="diff-ins">
-                    {s.text}
-                  </ins>
-                ) : (
-                  <del key={k} className="diff-del">
-                    {s.text}
-                  </del>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="output-text">
-              {output}
-              {!output && !busy && (
-                <div className="output-empty" aria-hidden="true">
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
+                <div className="thread">
+                  {thread.map((m, i) => (
+                    <div className="msg" key={m.id}>
+                      <div className="msg-head">
+                        <div className="msg-id">
+                          <span
+                            className="msg-num"
+                            title={`Message ${thread.length - i} de la conversation (1 = plus ancien)`}
+                          >
+                            {thread.length - i}
+                          </span>
+                          <div className="pill-options">
+                            <button
+                              className={`pill ${m.from === "them" ? "active" : ""}`}
+                              onClick={() => updateMsg(m.id, { from: "them" })}
+                            >
+                              Reçu
+                            </button>
+                            <button
+                              className={`pill ${m.from === "me" ? "active" : ""}`}
+                              onClick={() => updateMsg(m.id, { from: "me" })}
+                            >
+                              Moi
+                            </button>
+                          </div>
+                        </div>
+                        <div className="msg-tools">
+                          <button
+                            className="icon-btn"
+                            title="Coller le presse-papier dans ce message"
+                            onClick={() => pasteIntoMsg(m.id)}
+                          >
+                            <ClipboardIcon />
+                          </button>
+                          <button
+                            className="icon-btn"
+                            title="Supprimer ce message"
+                            onClick={() => removeMsg(m.id)}
+                            disabled={thread.length === 1 && !m.text}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
+                      <GrowingTextarea
+                        className="msg-text"
+                        value={m.text}
+                        onValueChange={(v) => updateMsg(m.id, { text: v })}
+                        onKeyDown={onInputKeyDown}
+                        placeholder={
+                          m.from === "them"
+                            ? "Colle ici le message reçu…"
+                            : "Colle ici ton message…"
+                        }
+                      />
+                    </div>
+                  ))}
+                  <button className="ghost-btn add-msg" onClick={addMsg}>
+                    <PlusIcon />
+                    Ajouter un message plus ancien
+                  </button>
                 </div>
-              )}
-              {busy && <span className="cursor" />}
-            </div>
-          )}
-        </div>
+              </>
+            )}
+          </section>
+        )}
       </main>
 
       <footer className="footer">
@@ -638,55 +683,35 @@ export default function App() {
 
 /**
  * Zone de texte contrôlée à hauteur automatique (même comportement que la
- * zone de saisie principale) avec nettoyage du collage. Utilisée pour les
- * messages de la conversation de l'onglet « Répondre » : remplie et hors
- * focus, elle se replie à COLLAPSED_MSG_HEIGHT (avec un fondu) et se déplie
- * au clic, pour que quatre mails collés ne repoussent pas la réponse hors
- * de l'écran.
+ * zone de saisie principale, plafond MSG_MAX_HEIGHT) avec nettoyage du
+ * collage. Utilisée pour les messages de la conversation de l'onglet
+ * « Répondre ».
  */
 function GrowingTextarea({
   value,
   onValueChange,
-  className,
-  onFocus,
-  onBlur,
   ...rest
 }: {
   value: string;
   onValueChange: (value: string) => void;
 } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange">) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [focused, setFocused] = useState(false);
-  // Le fondu n'apparaît que si le repli masque réellement du contenu.
-  const [truncated, setTruncated] = useState(false);
-  const collapsed = !focused && value.trim() !== "";
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     const full = el.scrollHeight;
-    const cap = collapsed ? COLLAPSED_MSG_HEIGHT : MAX_TEXTAREA_HEIGHT;
-    el.style.height = `${Math.min(full, cap)}px`;
-    el.style.overflowY = !collapsed && full > cap ? "auto" : "hidden";
-    setTruncated(collapsed && full > cap);
-  }, [value, collapsed]);
+    el.style.height = `${Math.min(full, MSG_MAX_HEIGHT)}px`;
+    el.style.overflowY = full > MSG_MAX_HEIGHT ? "auto" : "hidden";
+  }, [value]);
 
   return (
     <textarea
       ref={ref}
       value={value}
-      className={`${className ?? ""} ${truncated ? "collapsed" : ""}`}
       onChange={(e) => onValueChange(e.target.value)}
       onPaste={(e) => pasteCleaned(e, value, onValueChange)}
-      onFocus={(e) => {
-        setFocused(true);
-        onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        setFocused(false);
-        onBlur?.(e);
-      }}
       spellCheck={false}
       {...rest}
     />
@@ -860,6 +885,14 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </Icon>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <Icon>
+      <polyline points="9 18 15 12 9 6" />
     </Icon>
   );
 }

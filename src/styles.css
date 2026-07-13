@@ -264,10 +264,47 @@ textarea:focus {
 }
 
 /* ---- Conversation (onglet Répondre) ---- */
-.section-head {
+.history {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
+}
+
+/* En-tête du menu déroulant : chevron + intitulé + nombre de messages. */
+.history-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: var(--space-1) 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.history-toggle:hover {
+  color: var(--fg);
+}
+
+.history-toggle .btn-icon {
+  transition: transform 0.15s;
+}
+
+.history-toggle.open .btn-icon {
+  transform: rotate(90deg);
+}
+
+.history-count {
+  padding: 1px var(--space-2);
+  background: var(--hover);
+  border-radius: 999px;
+  font-size: var(--text-xs);
 }
 
 .section-hint {
@@ -349,13 +386,6 @@ textarea:focus {
   padding: var(--space-2) var(--space-3) var(--space-3);
   background: transparent;
   border-radius: var(--radius-lg);
-}
-
-/* Message replié (rempli, hors focus, contenu masqué) : fondu en bas pour
-   signaler la suite ; un clic dedans le déplie. */
-.msg .msg-text.collapsed {
-  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
 }
 
 .add-msg {
