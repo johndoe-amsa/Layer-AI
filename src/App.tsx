@@ -170,15 +170,22 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showSettings]);
 
-  async function run() {
-    if (!input.trim() || busy) return;
+  function run() {
+    return generate(input);
+  }
+
+  // Cœur de la génération, paramétré par le texte source. `run()` l'appelle
+  // avec la saisie courante ; « Réitérer » l'appelle avec la sortie précédente
+  // sans attendre le rafraîchissement de `input` (mise à jour d'état asynchrone).
+  async function generate(rawText: string) {
+    if (!rawText.trim() || busy) return;
     if (!settings.apiKey) {
       setShowSettings(true);
       return;
     }
     // Texte nettoyé des artefacts de copier-coller (Outlook, Word…) avant
     // envoi et comparaison, pour éviter les espaces parasites.
-    const text = cleanInput(input);
+    const text = cleanInput(rawText);
     setBusy(true);
     setError("");
     setOutput("");
@@ -312,6 +319,16 @@ export default function App() {
     inputRef.current?.focus();
   }
 
+  // Réitère : reprend la sortie comme nouvelle entrée puis relance aussitôt la
+  // génération avec le même réglage (ex. « Plus court » appliqué plusieurs fois
+  // d'affilée). Enchaîne « Reprendre » + génération en un seul geste.
+  function iterateOutput() {
+    const current = output;
+    setInput(current);
+    setShowDiff(false);
+    generate(current);
+  }
+
   // Envoie la réponse générée dans l'onglet Reformuler pour la retravailler
   // (bouton « Reprendre et reformuler » du mode Répondre).
   function reuseIntoRephrase() {
@@ -378,15 +395,30 @@ export default function App() {
               Reprendre et reformuler
             </button>
           ) : (
-            <button
-              className="ghost-btn"
-              onClick={reuseOutput}
-              disabled={!output || busy}
-              title="Reprendre ce texte comme nouvelle entrée"
-            >
-              <ReuseIcon />
-              Reprendre
-            </button>
+            <>
+              <button
+                className="ghost-btn"
+                onClick={reuseOutput}
+                disabled={!output || busy}
+                title="Reprendre ce texte comme nouvelle entrée"
+              >
+                <ReuseIcon />
+                Reprendre
+              </button>
+              {/* Reformuler : reprend la sortie et relance aussitôt la même
+                  reformulation (ex. « Plus court » enchaîné plusieurs fois). */}
+              {task.id === "rephrase" && (
+                <button
+                  className="ghost-btn"
+                  onClick={iterateOutput}
+                  disabled={!output || busy}
+                  title="Reprendre cette sortie et relancer la reformulation"
+                >
+                  <RefreshIcon />
+                  Réitérer
+                </button>
+              )}
+            </>
           )}
           <button
             className="ghost-btn"
