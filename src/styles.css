@@ -263,6 +263,142 @@ textarea:focus {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
+/* ---- Conversation (onglet Répondre) ---- */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* En-tête du menu déroulant : chevron + intitulé + nombre de messages. */
+.history-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: var(--space-1) 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.history-toggle:hover {
+  color: var(--fg);
+}
+
+.history-toggle .btn-icon {
+  transition: transform 0.15s;
+}
+
+.history-toggle.open .btn-icon {
+  transform: rotate(90deg);
+}
+
+.history-count {
+  padding: 1px var(--space-2);
+  background: var(--hover);
+  border-radius: 999px;
+  font-size: var(--text-xs);
+}
+
+.section-hint {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: var(--leading-normal);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Bloc de message : la carte porte la bordure et l'anneau de focus, la zone
+   de texte interne est nue pour éviter les doubles cadres. */
+.msg {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.msg:focus-within {
+  border-color: var(--fg);
+  box-shadow: 0 0 0 1px var(--fg);
+}
+
+.msg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.msg-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Numéro d'ordre chronologique du message (1 = premier de l'échange). */
+.msg-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+  user-select: none;
+}
+
+.msg-tools {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.msg-tools .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+  color: var(--muted);
+}
+
+.msg .msg-text,
+.msg .msg-text:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.msg .msg-text {
+  min-height: 60px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  background: transparent;
+  border-radius: var(--radius-lg);
+}
+
+.add-msg {
+  align-self: center;
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.add-msg:hover {
+  background: var(--bg);
+  color: var(--fg);
+}
+
 /* ---- Buttons ---- */
 .primary-btn {
   display: inline-flex;
@@ -585,6 +721,21 @@ textarea:focus {
 
 .panel input:focus {
   border-color: var(--fg);
+}
+
+/* Zone de texte des réglages (profil Répondre) : plus compacte que celles
+   de l'écran principal. */
+.panel textarea {
+  min-height: 64px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+}
+
+.panel textarea:focus {
+  box-shadow: none;
 }
 
 /* Conteneur encadré regroupant des lignes de réglage (modèles, options…). */

@@ -6,6 +6,9 @@ import {
   translateSystem,
   REPHRASE_TONES,
   rephraseSystem,
+  ReplyMessage,
+  replySystem,
+  replyUserMessage,
 } from "./lib/tasks";
 import {
   loadSettings,
@@ -25,11 +28,45 @@ import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop
 /** Hauteur maximale (px) de la zone de texte avant l'apparition du scroll. */
 const MAX_TEXTAREA_HEIGHT = 260;
 
+/**
+ * Hauteur maximale (px) d'un message de conversation : plus basse que la
+ * zone principale pour que plusieurs mails collés restent compacts (le
+ * contenu défile à l'intérieur du bloc). Fixe quel que soit le focus : une
+ * hauteur qui changerait au blur ferait bouger les boutons situés dessous
+ * au moment précis où l'on clique dessus.
+ */
+const MSG_MAX_HEIGHT = 150;
+
 const TASK_ICONS: Record<string, () => JSX.Element> = {
   fix: CheckCircleIcon,
   translate: GlobeIcon,
   rephrase: RefreshIcon,
+  reply: MailIcon,
 };
+
+/** Bloc de message de l'onglet « Répondre », identifié pour le rendu React. */
+type ThreadMsg = ReplyMessage & { id: number };
+
+/**
+ * Collage dans une zone de texte contrôlée : nettoie le contenu avant
+ * insertion et laisse le collage natif si rien n'est à nettoyer.
+ */
+function pasteCleaned(
+  e: React.ClipboardEvent<HTMLTextAreaElement>,
+  current: string,
+  set: (value: string) => void,
+) {
+  const raw = e.clipboardData.getData("text");
+  const cleaned = cleanInput(raw);
+  if (cleaned === raw) return;
+  e.preventDefault();
+  const el = e.currentTarget;
+  const start = el.selectionStart ?? current.length;
+  const end = el.selectionEnd ?? current.length;
+  set(current.slice(0, start) + cleaned + current.slice(end));
+  const caret = start + cleaned.length;
+  requestAnimationFrame(() => el.setSelectionRange(caret, caret));
+}
 
 export default function App() {
   const [task, setTask] = useState<Task>(
@@ -44,6 +81,13 @@ export default function App() {
     return REPHRASE_TONES.some((t) => t.code === code) ? code : REPHRASE_TONES[0].code;
   });
   const [input, setInput] = useState("");
+  // Conversation de l'onglet « Répondre », du plus récent au plus ancien :
+  // le premier bloc est le message auquel répondre.
+  const [thread, setThread] = useState<ThreadMsg[]>([{ id: 0, from: "them", text: "" }]);
+  const msgIdRef = useRef(1);
+  // Menu déroulant de la conversation : ouvert pendant la préparation, replié
+  // automatiquement au lancement pour ne garder que la réponse et la consigne.
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [output, setOutput] = useState("");
   // Texte effectivement envoyé pour la dernière correction, figé au lancement
   // afin que le diff reste cohérent même si l'entrée est modifiée ensuite.
@@ -56,6 +100,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const outputZoneRef = useRef<HTMLDivElement>(null);
   // Reflète le réglage autoPaste pour le handler d'ouverture (enregistré une
   // seule fois), sans le figer sur une valeur périmée.
   const autoPasteRef = useRef(settings.autoPaste);
@@ -63,6 +108,13 @@ export default function App() {
   useEffect(() => {
     autoPasteRef.current = settings.autoPaste;
   }, [settings.autoPaste]);
+
+  // Même besoin pour l'onglet courant : le handler d'ouverture (enregistré une
+  // seule fois) doit savoir où coller le presse-papier.
+  const taskRef = useRef(task.id);
+  useEffect(() => {
+    taskRef.current = task.id;
+  }, [task.id]);
 
   // Mémorise le dernier onglet, la dernière langue de traduction et le ton.
   useEffect(() => {
@@ -76,7 +128,16 @@ export default function App() {
     initDesktop(async () => {
       if (autoPasteRef.current) {
         const clip = cleanInput(await readClipboard());
-        if (clip && clip !== inputRef.current?.value) {
+        if (clip && taskRef.current === "reply") {
+          // En mode Répondre, le presse-papier est très probablement le mail
+          // auquel répondre : on remplit le premier bloc de conversation (le
+          // plus récent) s'il est libre, sans jamais écraser une saisie.
+          setThread((prev) => {
+            if (!prev[0] || prev[0].text.trim()) return prev;
+            setHistoryOpen(true);
+            return [{ ...prev[0], text: clip }, ...prev.slice(1)];
+          });
+        } else if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
           setOutput("");
           setError("");
@@ -123,6 +184,15 @@ export default function App() {
     setOutput("");
     setShowDiff(false);
     setSourceText(text);
+    // En mode Répondre : on replie la conversation dans son menu déroulant
+    // (il ne reste que la réponse et la consigne à l'écran) et on ramène la
+    // zone de réponse en vue.
+    if (task.id === "reply") {
+      if (thread.some((m) => m.text.trim())) setHistoryOpen(false);
+      requestAnimationFrame(() =>
+        outputZoneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
     abortRef.current = new AbortController();
     try {
       const system =
@@ -133,15 +203,25 @@ export default function App() {
             )
           : task.id === "rephrase"
             ? rephraseSystem(tone)
-            : task.system;
+            : task.id === "reply"
+              ? replySystem(settings.replyProfile)
+              : task.system;
+      // Répondre : consigne + conversation structurée. Autres modes : texte
+      // délimité, que le modèle doit transformer, pas y répondre.
+      const userContent =
+        task.id === "reply"
+          ? replyUserMessage(
+              thread.map(({ from, text: t }) => ({ from, text: cleanInput(t) })),
+              text,
+            )
+          : `<<<\n${text}\n>>>`;
       const model = settings.models[task.id] || DEFAULT_MODELS[task.id] || FALLBACK_MODEL;
       await streamCompletion(
         settings.apiKey,
         model,
         [
           { role: "system", content: system },
-          // Texte délimité : le modèle doit le transformer, pas y répondre.
-          { role: "user", content: `<<<\n${text}\n>>>` },
+          { role: "user", content: userContent },
         ],
         (chunk) => setOutput((prev) => prev + chunk),
         abortRef.current.signal,
@@ -173,16 +253,45 @@ export default function App() {
 
   // Collage natif (Ctrl/Cmd+V) : on nettoie le contenu avant insertion.
   function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const raw = e.clipboardData.getData("text");
-    const cleaned = cleanInput(raw);
-    if (cleaned === raw) return; // rien à nettoyer : on laisse le collage natif
-    e.preventDefault();
-    const el = e.currentTarget;
-    const start = el.selectionStart ?? input.length;
-    const end = el.selectionEnd ?? input.length;
-    setInput(input.slice(0, start) + cleaned + input.slice(end));
-    const caret = start + cleaned.length;
-    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
+    pasteCleaned(e, input, setInput);
+  }
+
+  // ---- Conversation de l'onglet « Répondre » ----
+
+  function updateMsg(id: number, patch: Partial<ThreadMsg>) {
+    setThread((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }
+
+  // La liste ne descend jamais sous un bloc : supprimer le dernier le vide.
+  function removeMsg(id: number) {
+    setThread((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      return next.length ? next : [{ id: msgIdRef.current++, from: "them", text: "" }];
+    });
+  }
+
+  // Ajoute un message plus ancien en fin de liste, en alternant l'expéditeur
+  // par rapport au bloc précédent : dans un échange, les tours de parole se
+  // succèdent.
+  function addMsg() {
+    setThread((prev) => [
+      ...prev,
+      {
+        id: msgIdRef.current++,
+        from: prev[prev.length - 1]?.from === "them" ? "me" : "them",
+        text: "",
+      },
+    ]);
+  }
+
+  async function pasteIntoMsg(id: number) {
+    const text = cleanInput(await readClipboard());
+    if (text) updateMsg(id, { text });
+  }
+
+  function resetThread() {
+    setThread([{ id: msgIdRef.current++, from: "them", text: "" }]);
+    setHistoryOpen(true);
   }
 
   async function copyOutput() {
@@ -199,6 +308,19 @@ export default function App() {
     setError("");
     // La sortie disparaît : on quitte l'affichage des modifications pour ne pas
     // diffuser l'ancien texte source contre une sortie vide (tout en rouge).
+    setShowDiff(false);
+    inputRef.current?.focus();
+  }
+
+  // Envoie la réponse générée dans l'onglet Reformuler pour la retravailler
+  // (bouton « Reprendre et reformuler » du mode Répondre).
+  function reuseIntoRephrase() {
+    const rephrase = TASKS.find((t) => t.id === "rephrase");
+    if (!rephrase) return;
+    setTask(rephrase);
+    setInput(output);
+    setOutput("");
+    setError("");
     setShowDiff(false);
     inputRef.current?.focus();
   }
@@ -220,6 +342,100 @@ export default function App() {
   // pas comme des corrections visibles.
   const hasChanges =
     diffSegments?.some((s) => s.op !== "equal" && !/^\s+$/.test(s.text)) ?? false;
+
+  const filledCount = thread.filter((m) => m.text.trim()).length;
+
+  // Zone de réponse, extraite pour être placée en tête en mode Répondre
+  // (la réponse reste ainsi visible sans scroller) et en bas ailleurs.
+  const outputZone = (
+    <div className="output-zone" ref={outputZoneRef}>
+      <div className="output-header">
+        {task.id === "fix" && (
+          <label className="switch-row">
+            <span>Modifications</span>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={showDiff}
+                disabled={!output || busy}
+                onChange={(e) => setShowDiff(e.target.checked)}
+              />
+              <span className="slider" />
+            </span>
+          </label>
+        )}
+        <div className="output-actions">
+          {/* En mode Répondre, la sortie est un mail : on ne la reprend pas
+              comme nouvelle entrée, on l'envoie vers l'onglet Reformuler. */}
+          {task.id === "reply" ? (
+            <button
+              className="ghost-btn"
+              onClick={reuseIntoRephrase}
+              disabled={!output || busy}
+              title="Reprendre cette réponse dans l'onglet Reformuler"
+            >
+              <RefreshIcon />
+              Reprendre et reformuler
+            </button>
+          ) : (
+            <button
+              className="ghost-btn"
+              onClick={reuseOutput}
+              disabled={!output || busy}
+              title="Reprendre ce texte comme nouvelle entrée"
+            >
+              <ReuseIcon />
+              Reprendre
+            </button>
+          )}
+          <button
+            className="ghost-btn"
+            onClick={copyOutput}
+            disabled={!output || busy}
+          >
+            <CopyIcon />
+            {copied ? "Copié ✓" : "Copier"}
+          </button>
+        </div>
+      </div>
+      {showDiff && diffSegments ? (
+        <div className="output-text">
+          {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
+          {diffSegments.map((s, k) => {
+            // Changements d'espaces seuls : on les affiche sans surlignage
+            // (insertion en clair, suppression masquée) pour ne garder en
+            // couleur que les vraies modifications de mots.
+            const isSpace = /^\s+$/.test(s.text);
+            if (s.op === "equal" || (isSpace && s.op === "insert")) {
+              return <span key={k}>{s.text}</span>;
+            }
+            if (isSpace) return null;
+            return s.op === "insert" ? (
+              <ins key={k} className="diff-ins">
+                {s.text}
+              </ins>
+            ) : (
+              <del key={k} className="diff-del">
+                {s.text}
+              </del>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="output-text">
+          {output}
+          {!output && !busy && (
+            <div className="output-empty" aria-hidden="true">
+              <span className="skeleton-line" />
+              <span className="skeleton-line" />
+              <span className="skeleton-line" />
+            </div>
+          )}
+          {busy && <span className="cursor" />}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="app">
@@ -256,6 +472,14 @@ export default function App() {
       </nav>
 
       <main className="main">
+        {/* Mode Répondre : la réponse d'abord (toujours visible sans scroller),
+            puis la consigne, puis la conversation repliable. */}
+        {task.id === "reply" && (
+          <>
+            {outputZone}
+            {error && <div className="error">{error}</div>}
+          </>
+        )}
         <div className="input-zone">
           {task.id === "translate" && (
             <div className="pill-select">
@@ -289,6 +513,7 @@ export default function App() {
               </div>
             </div>
           )}
+          {task.id === "reply" && <span className="pill-select-label">Consigne</span>}
           <textarea
             ref={inputRef}
             value={input}
@@ -299,7 +524,7 @@ export default function App() {
             spellCheck={false}
           />
           <div className="input-actions">
-            {input ? (
+            {input || (task.id === "reply" && thread.some((m) => m.text.trim())) ? (
               <button
                 className="ghost-btn danger"
                 onClick={() => {
@@ -307,6 +532,7 @@ export default function App() {
                   setOutput("");
                   setError("");
                   setShowDiff(false);
+                  if (task.id === "reply") resetThread();
                 }}
               >
                 <TrashIcon />
@@ -332,81 +558,102 @@ export default function App() {
           </div>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {task.id !== "reply" && (
+          <>
+            {error && <div className="error">{error}</div>}
+            {outputZone}
+          </>
+        )}
 
-        <div className="output-zone">
-          <div className="output-header">
-            {task.id === "fix" && (
-              <label className="switch-row">
-                <span>Modifications</span>
-                <span className="switch">
-                  <input
-                    type="checkbox"
-                    checked={showDiff}
-                    disabled={!output || busy}
-                    onChange={(e) => setShowDiff(e.target.checked)}
-                  />
-                  <span className="slider" />
+        {task.id === "reply" && (
+          <section className="history">
+            <button
+              className={`history-toggle ${historyOpen ? "open" : ""}`}
+              onClick={() => setHistoryOpen((o) => !o)}
+            >
+              <ChevronIcon />
+              Conversation
+              <span className="history-count">
+                {filledCount === 0
+                  ? "vide"
+                  : filledCount === 1
+                    ? "1 message"
+                    : `${filledCount} messages`}
+              </span>
+            </button>
+            {historyOpen && (
+              <>
+                <span className="section-hint">
+                  Du plus récent au plus ancien : en haut, le message auquel tu réponds.
+                  Marque « Moi » tes propres messages : la réponse imitera ta façon
+                  d'écrire.
                 </span>
-              </label>
-            )}
-            <div className="output-actions">
-              <button
-                className="ghost-btn"
-                onClick={reuseOutput}
-                disabled={!output || busy}
-                title="Reprendre ce texte comme nouvelle entrée"
-              >
-                <ReuseIcon />
-                Reprendre
-              </button>
-              <button
-                className="ghost-btn"
-                onClick={copyOutput}
-                disabled={!output || busy}
-              >
-                <CopyIcon />
-                {copied ? "Copié ✓" : "Copier"}
-              </button>
-            </div>
-          </div>
-          {showDiff && diffSegments ? (
-            <div className="output-text">
-              {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
-              {diffSegments.map((s, k) => {
-                // Changements d'espaces seuls : on les affiche sans surlignage
-                // (insertion en clair, suppression masquée) pour ne garder en
-                // couleur que les vraies modifications de mots.
-                const isSpace = /^\s+$/.test(s.text);
-                if (s.op === "equal" || (isSpace && s.op === "insert")) {
-                  return <span key={k}>{s.text}</span>;
-                }
-                if (isSpace) return null;
-                return s.op === "insert" ? (
-                  <ins key={k} className="diff-ins">
-                    {s.text}
-                  </ins>
-                ) : (
-                  <del key={k} className="diff-del">
-                    {s.text}
-                  </del>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="output-text">
-              {output}
-              {!output && !busy && (
-                <div className="output-empty" aria-hidden="true">
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
+                <div className="thread">
+                  {thread.map((m, i) => (
+                    <div className="msg" key={m.id}>
+                      <div className="msg-head">
+                        <div className="msg-id">
+                          <span
+                            className="msg-num"
+                            title={`Message ${thread.length - i} de la conversation (1 = plus ancien)`}
+                          >
+                            {thread.length - i}
+                          </span>
+                          <div className="pill-options">
+                            <button
+                              className={`pill ${m.from === "them" ? "active" : ""}`}
+                              onClick={() => updateMsg(m.id, { from: "them" })}
+                            >
+                              Reçu
+                            </button>
+                            <button
+                              className={`pill ${m.from === "me" ? "active" : ""}`}
+                              onClick={() => updateMsg(m.id, { from: "me" })}
+                            >
+                              Moi
+                            </button>
+                          </div>
+                        </div>
+                        <div className="msg-tools">
+                          <button
+                            className="icon-btn"
+                            title="Coller le presse-papier dans ce message"
+                            onClick={() => pasteIntoMsg(m.id)}
+                          >
+                            <ClipboardIcon />
+                          </button>
+                          <button
+                            className="icon-btn"
+                            title="Supprimer ce message"
+                            onClick={() => removeMsg(m.id)}
+                            disabled={thread.length === 1 && !m.text}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
+                      <GrowingTextarea
+                        className="msg-text"
+                        value={m.text}
+                        onValueChange={(v) => updateMsg(m.id, { text: v })}
+                        onKeyDown={onInputKeyDown}
+                        placeholder={
+                          m.from === "them"
+                            ? "Colle ici le message reçu…"
+                            : "Colle ici ton message…"
+                        }
+                      />
+                    </div>
+                  ))}
+                  <button className="ghost-btn add-msg" onClick={addMsg}>
+                    <PlusIcon />
+                    Ajouter un message plus ancien
+                  </button>
                 </div>
-              )}
-              {busy && <span className="cursor" />}
-            </div>
-          )}
-        </div>
+              </>
+            )}
+          </section>
+        )}
       </main>
 
       <footer className="footer">
@@ -434,6 +681,43 @@ export default function App() {
   );
 }
 
+/**
+ * Zone de texte contrôlée à hauteur automatique (même comportement que la
+ * zone de saisie principale, plafond MSG_MAX_HEIGHT) avec nettoyage du
+ * collage. Utilisée pour les messages de la conversation de l'onglet
+ * « Répondre ».
+ */
+function GrowingTextarea({
+  value,
+  onValueChange,
+  ...rest
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+} & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange">) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const full = el.scrollHeight;
+    el.style.height = `${Math.min(full, MSG_MAX_HEIGHT)}px`;
+    el.style.overflowY = full > MSG_MAX_HEIGHT ? "auto" : "hidden";
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onValueChange(e.target.value)}
+      onPaste={(e) => pasteCleaned(e, value, onValueChange)}
+      spellCheck={false}
+      {...rest}
+    />
+  );
+}
+
 function SettingsPanel({
   settings,
   onSave,
@@ -446,6 +730,7 @@ function SettingsPanel({
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [models, setModels] = useState<Record<string, string>>(settings.models);
   const [autoPaste, setAutoPaste] = useState(settings.autoPaste);
+  const [replyProfile, setReplyProfile] = useState(settings.replyProfile);
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -492,6 +777,23 @@ function SettingsPanel({
           </div>
         </section>
 
+        <section className="field">
+          <label className="field-label" htmlFor="reply-profile">
+            E-Mail · à propos de toi
+          </label>
+          <textarea
+            id="reply-profile"
+            value={replyProfile}
+            onChange={(e) => setReplyProfile(e.target.value)}
+            placeholder="Ex. : signe « Thomas », tutoie mes collègues, réponses courtes et directes…"
+            spellCheck={false}
+          />
+          <p className="field-hint">
+            Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
+            signature et ta façon d'écrire.
+          </p>
+        </section>
+
         {isDesktop && (
           <section className="field">
             <span className="field-label">Comportement</span>
@@ -519,7 +821,9 @@ function SettingsPanel({
           </button>
           <button
             className="primary-btn"
-            onClick={() => onSave({ apiKey: apiKey.trim(), models, autoPaste })}
+            onClick={() =>
+              onSave({ apiKey: apiKey.trim(), models, autoPaste, replyProfile: replyProfile.trim() })
+            }
           >
             Enregistrer
           </button>
@@ -581,6 +885,32 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </Icon>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <Icon>
+      <polyline points="9 18 15 12 9 6" />
+    </Icon>
+  );
+}
+
+function MailIcon() {
+  return (
+    <Icon>
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </Icon>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <Icon>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </Icon>
   );
 }

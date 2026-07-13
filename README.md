@@ -1,6 +1,6 @@
 # Layer AI :)
 
-Mini assistant LLM : corriger, traduire ou reformuler un texte en un raccourci clavier.
+Mini assistant LLM : corriger, traduire ou reformuler un texte, ou rédiger la réponse à un mail (dans ton style, à partir de la conversation collée), en un raccourci clavier.
 
 Un seul codebase, deux versions :
 

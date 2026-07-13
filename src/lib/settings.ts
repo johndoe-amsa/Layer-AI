@@ -4,6 +4,11 @@ export interface Settings {
   models: Record<string, string>;
   /** Coller automatiquement le presse-papier à l'ouverture (desktop). */
   autoPaste: boolean;
+  /**
+   * Notes personnelles injectées dans le prompt du mode Répondre
+   * (signature, tutoiement/vouvoiement, préférences de style). Optionnel.
+   */
+  replyProfile: string;
 }
 
 const KEY = "layer-ai-settings";
@@ -25,6 +30,8 @@ export const DEFAULT_MODELS: Record<string, string> = {
   fix: "gpt-4.1-mini",
   translate: "gpt-4.1",
   rephrase: "gpt-4.1-mini",
+  // Rédaction libre imitant un style : la qualité prime sur le coût.
+  reply: "gpt-4.1",
 };
 
 /** Modèle de repli si un mode n'a pas de modèle défini. */
@@ -38,13 +45,14 @@ export function loadSettings(): Settings {
       return {
         apiKey: parsed.apiKey ?? "",
         autoPaste: parsed.autoPaste ?? true,
+        replyProfile: parsed.replyProfile ?? "",
         models: { ...DEFAULT_MODELS, ...(parsed.models ?? {}) },
       };
     }
   } catch {
     // stockage corrompu : on repart de zéro
   }
-  return { apiKey: "", autoPaste: true, models: { ...DEFAULT_MODELS } };
+  return { apiKey: "", autoPaste: true, replyProfile: "", models: { ...DEFAULT_MODELS } };
 }
 
 export function saveSettings(s: Settings) {
