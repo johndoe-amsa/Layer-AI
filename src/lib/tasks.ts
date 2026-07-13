@@ -121,7 +121,7 @@ export const TASKS: Task[] = [
   },
   {
     id: "reply",
-    label: "Répondre",
+    label: "E-Mail",
     system: replySystem(""),
     placeholder: "Explique la réponse à rédiger… (ex. : accepte le rendez-vous mais propose 8h)",
   },

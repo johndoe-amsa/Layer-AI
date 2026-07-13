@@ -779,7 +779,7 @@ function SettingsPanel({
 
         <section className="field">
           <label className="field-label" htmlFor="reply-profile">
-            Répondre · à propos de toi
+            E-Mail · à propos de toi
           </label>
           <textarea
             id="reply-profile"
@@ -789,7 +789,7 @@ function SettingsPanel({
             spellCheck={false}
           />
           <p className="field-hint">
-            Optionnel. Transmis au modèle uniquement dans l'onglet Répondre, pour la
+            Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
             signature et ta façon d'écrire.
           </p>
         </section>
