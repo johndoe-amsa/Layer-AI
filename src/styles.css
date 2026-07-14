@@ -186,7 +186,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab-underline {
+  .tab-underline,
+  .pill-thumb {
     transition: none;
   }
 }
@@ -253,6 +254,7 @@ textarea:focus {
 }
 
 .pill-options {
+  position: relative;
   display: flex;
   gap: var(--space-1);
   padding: var(--space-1);
@@ -262,6 +264,8 @@ textarea:focus {
 }
 
 .pill {
+  /* Positionné pour passer au-dessus du fond glissant .pill-thumb. */
+  position: relative;
   padding: var(--space-1) var(--space-2);
   border: none;
   background: none;
@@ -280,9 +284,25 @@ textarea:focus {
 }
 
 .pill.active {
-  background: var(--bg);
   color: var(--fg);
+}
+
+/* Fond blanc de la pilule active : un seul élément qui glisse d'une
+   option à l'autre (façon segmented control iOS), au lieu d'un fond qui
+   saute de pilule en pilule. Position/taille posées en JS sur la pilule
+   active ; suit aussi les passages à la ligne (translate en X et Y). */
+.pill-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ---- Conversation (onglet Répondre) ---- */

@@ -68,6 +68,85 @@ function pasteCleaned(
   requestAnimationFrame(() => el.setSelectionRange(caret, caret));
 }
 
+/**
+ * Position de l'élément actif (sélecteur CSS) dans un conteneur, pour y
+ * faire glisser un surlignage. Re-mesure quand `dep` change, au
+ * redimensionnement de la fenêtre et au chargement de la police (les
+ * largeurs de texte changent dans ces deux cas).
+ */
+function useSlidingHighlight(
+  ref: React.RefObject<HTMLElement>,
+  selector: string,
+  dep: unknown,
+) {
+  const [rect, setRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const measure = () => {
+      const el = box.querySelector<HTMLElement>(selector);
+      if (el)
+        setRect({
+          left: el.offsetLeft,
+          top: el.offsetTop,
+          width: el.offsetWidth,
+          height: el.offsetHeight,
+        });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    document.fonts?.ready.then(measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [ref, selector, dep]);
+  return rect;
+}
+
+/**
+ * Sélecteur en pilules dont le fond blanc de l'option active glisse d'une
+ * option à l'autre (façon segmented control) au lieu de sauter.
+ */
+function PillOptions<C extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { code: C; label: string }[];
+  value: C;
+  onChange: (code: C) => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const thumb = useSlidingHighlight(ref, ".pill.active", value);
+  return (
+    <div className="pill-options" ref={ref}>
+      {thumb && (
+        <span
+          className="pill-thumb"
+          aria-hidden="true"
+          style={{
+            transform: `translate(${thumb.left}px, ${thumb.top}px)`,
+            width: thumb.width,
+            height: thumb.height,
+          }}
+        />
+      )}
+      {options.map((o) => (
+        <button
+          key={o.code}
+          className={`pill ${o.code === value ? "active" : ""}`}
+          onClick={() => onChange(o.code)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [task, setTask] = useState<Task>(
     () => TASKS.find((t) => t.id === loadPrefs().task) ?? TASKS[0],
@@ -75,21 +154,7 @@ export default function App() {
   /* Soulignement glissant de la barre d'onglets : position mesurée sur
      l'onglet actif, animée en CSS d'un onglet à l'autre. */
   const tabsRef = useRef<HTMLElement | null>(null);
-  const [tabUnderline, setTabUnderline] = useState<{ left: number; width: number } | null>(null);
-  useLayoutEffect(() => {
-    const nav = tabsRef.current;
-    if (!nav) return;
-    const measure = () => {
-      const active = nav.querySelector<HTMLElement>(".tab.active");
-      if (active) setTabUnderline({ left: active.offsetLeft, width: active.offsetWidth });
-    };
-    measure();
-    /* La largeur des onglets change avec la fenêtre et au chargement de la
-       police : on re-mesure dans ces deux cas. */
-    window.addEventListener("resize", measure);
-    document.fonts?.ready.then(measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [task.id]);
+  const tabUnderline = useSlidingHighlight(tabsRef, ".tab.active", task.id);
   const [targetLang, setTargetLang] = useState<string>(() => {
     const code = loadPrefs().targetLang;
     return TRANSLATE_LANGS.some((l) => l.code === code) ? code : TRANSLATE_LANGS[0].code;
@@ -544,33 +609,13 @@ export default function App() {
           {task.id === "translate" && (
             <div className="pill-select">
               <span className="pill-select-label">Traduire vers</span>
-              <div className="pill-options">
-                {TRANSLATE_LANGS.map((l) => (
-                  <button
-                    key={l.code}
-                    className={`pill ${l.code === targetLang ? "active" : ""}`}
-                    onClick={() => setTargetLang(l.code)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
+              <PillOptions options={TRANSLATE_LANGS} value={targetLang} onChange={setTargetLang} />
             </div>
           )}
           {task.id === "rephrase" && (
             <div className="pill-select">
               <span className="pill-select-label">Ton</span>
-              <div className="pill-options">
-                {REPHRASE_TONES.map((t) => (
-                  <button
-                    key={t.code}
-                    className={`pill ${t.code === tone ? "active" : ""}`}
-                    onClick={() => setTone(t.code)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <PillOptions options={REPHRASE_TONES} value={tone} onChange={setTone} />
             </div>
           )}
           {task.id === "reply" && <span className="pill-select-label">Consigne</span>}
@@ -659,20 +704,14 @@ export default function App() {
                           >
                             {thread.length - i}
                           </span>
-                          <div className="pill-options">
-                            <button
-                              className={`pill ${m.from === "them" ? "active" : ""}`}
-                              onClick={() => updateMsg(m.id, { from: "them" })}
-                            >
-                              Reçu
-                            </button>
-                            <button
-                              className={`pill ${m.from === "me" ? "active" : ""}`}
-                              onClick={() => updateMsg(m.id, { from: "me" })}
-                            >
-                              Moi
-                            </button>
-                          </div>
+                          <PillOptions
+                            options={[
+                              { code: "them", label: "Reçu" },
+                              { code: "me", label: "Moi" },
+                            ] as const}
+                            value={m.from}
+                            onChange={(from) => updateMsg(m.id, { from })}
+                          />
                         </div>
                         <div className="msg-tools">
                           <button
