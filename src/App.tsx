@@ -107,6 +107,49 @@ function useSlidingHighlight(
 }
 
 /**
+ * Anime en hauteur un conteneur au gré de son contenu : mesure la hauteur
+ * réelle d'un enfant (ResizeObserver) et la reporte sur le conteneur, que le
+ * CSS interpole. La première mesure fixe la hauteur sans animation (elle vaut
+ * la hauteur naturelle du moment) ; les suivantes — texte streamé, bascule du
+ * diff, effacement — glissent en douceur, dans les deux sens.
+ */
+function useAnimatedHeight<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setHeight(el.scrollHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, height] as const;
+}
+
+/**
+ * Rend un texte streamé en faisant apparaître chaque mot en fondu, pour éviter
+ * l'effet saccadé du texte qui surgit par blocs. Les tokens gardent une clé
+ * stable par position : le texte déjà posé n'est jamais ré-animé quand de
+ * nouveaux morceaux arrivent, ni quand la sortie finale est renormalisée
+ * (tirets). Le fondu n'est appliqué que pendant le streaming (`animate`), si
+ * bien qu'une bascule ultérieure vers le diff — puis retour — ne le rejoue pas.
+ */
+function StreamingText({ text, animate }: { text: string; animate: boolean }) {
+  const tokens = useMemo(() => text.split(/(\s+)/), [text]);
+  return (
+    <>
+      {tokens.map((tok, i) => (
+        <span key={i} className={animate ? "tok-in" : undefined}>
+          {tok}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
  * Sélecteur en pilules dont le fond blanc de l'option active glisse d'une
  * option à l'autre (façon segmented control) au lieu de sauter.
  */
@@ -184,6 +227,9 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const outputZoneRef = useRef<HTMLDivElement>(null);
+  // Conteneur de sortie animé en hauteur : la hauteur mesurée du contenu est
+  // reportée sur `.output-body`, que le CSS interpole (apparition, diff, effacement).
+  const [bodyRef, bodyHeight] = useAnimatedHeight<HTMLDivElement>();
   // Reflète le réglage autoPaste pour le handler d'ouverture (enregistré une
   // seule fois), sans le figer sur une valeur périmée.
   const autoPasteRef = useRef(settings.autoPaste);
@@ -513,42 +559,54 @@ export default function App() {
           </button>
         </div>
       </div>
-      {showDiff && diffSegments ? (
-        <div className="output-text">
-          {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
-          {diffSegments.map((s, k) => {
-            // Changements d'espaces seuls : on les affiche sans surlignage
-            // (insertion en clair, suppression masquée) pour ne garder en
-            // couleur que les vraies modifications de mots.
-            const isSpace = /^\s+$/.test(s.text);
-            if (s.op === "equal" || (isSpace && s.op === "insert")) {
-              return <span key={k}>{s.text}</span>;
-            }
-            if (isSpace) return null;
-            return s.op === "insert" ? (
-              <ins key={k} className="diff-ins">
-                {s.text}
-              </ins>
-            ) : (
-              <del key={k} className="diff-del">
-                {s.text}
-              </del>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="output-text">
-          {output}
-          {!output && !busy && (
-            <div className="output-empty" aria-hidden="true">
-              <span className="skeleton-line" />
-              <span className="skeleton-line" />
-              <span className="skeleton-line" />
+      {/* Corps animé en hauteur : la hauteur réelle du contenu (mesurée sur
+          `.output-body-inner`) est posée ici et interpolée par le CSS, pour
+          lisser l'apparition du texte, la bascule du diff et le retour à vide.
+          Pendant le streaming, on la laisse suivre au plus près pour ne pas
+          masquer le texte le plus récent. */}
+      <div
+        className={`output-body${busy ? " streaming" : ""}`}
+        style={bodyHeight != null ? { height: bodyHeight } : undefined}
+      >
+        <div className="output-body-inner" ref={bodyRef}>
+          {showDiff && diffSegments ? (
+            <div className="output-text diff-view">
+              {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
+              {diffSegments.map((s, k) => {
+                // Changements d'espaces seuls : on les affiche sans surlignage
+                // (insertion en clair, suppression masquée) pour ne garder en
+                // couleur que les vraies modifications de mots.
+                const isSpace = /^\s+$/.test(s.text);
+                if (s.op === "equal" || (isSpace && s.op === "insert")) {
+                  return <span key={k}>{s.text}</span>;
+                }
+                if (isSpace) return null;
+                return s.op === "insert" ? (
+                  <ins key={k} className="diff-ins">
+                    {s.text}
+                  </ins>
+                ) : (
+                  <del key={k} className="diff-del">
+                    {s.text}
+                  </del>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="output-text">
+              <StreamingText text={output} animate={busy} />
+              {!output && !busy && (
+                <div className="output-empty" aria-hidden="true">
+                  <span className="skeleton-line" />
+                  <span className="skeleton-line" />
+                  <span className="skeleton-line" />
+                </div>
+              )}
+              {busy && <span className="cursor" />}
             </div>
           )}
-          {busy && <span className="cursor" />}
         </div>
-      )}
+      </div>
     </div>
   );
 

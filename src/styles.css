@@ -543,11 +543,68 @@ textarea:focus {
   margin-bottom: var(--space-3);
 }
 
+/* Corps de la sortie : sa hauteur (mesurée en JS sur `.output-body-inner`)
+   est interpolée pour lisser l'apparition du texte streamé, la bascule vers
+   le diff et le retour à l'état vide (effacement). overflow caché pour que
+   le contenu soit révélé par la hauteur qui grandit, sans déborder du cadre. */
+.output-body {
+  overflow: hidden;
+  transition: height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Pendant le streaming, la hauteur suit de plus près le contenu : le texte le
+   plus récent n'est jamais masqué le temps que le cadre le rattrape. */
+.output-body.streaming {
+  transition-duration: 0.18s;
+}
+
 .output-text {
   white-space: pre-wrap;
   line-height: var(--leading-relaxed);
   font-size: var(--text-md);
   min-height: 44px;
+}
+
+/* Fondu d'apparition, mot à mot pour le texte streamé et en bloc pour le
+   diff. `both` maintient l'état final : un mot déjà apparu reste opaque même
+   si sa classe est retirée (fin du streaming). */
+.tok-in {
+  animation: word-in 0.32s ease both;
+}
+
+.diff-view {
+  animation: fade-in 0.25s ease both;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Accessibilité : pas d'animation si l'utilisateur la refuse. Le texte et le
+   diff restent pleinement visibles, la hauteur s'ajuste instantanément. */
+@media (prefers-reduced-motion: reduce) {
+  .output-body {
+    transition: none;
+  }
+
+  .tok-in,
+  .diff-view {
+    animation: none;
+  }
 }
 
 /* État vide : squelette de texte suggérant la réponse à venir. */
