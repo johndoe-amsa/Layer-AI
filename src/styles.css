@@ -134,6 +134,7 @@ body {
 
 /* ---- Tabs ---- */
 .tabs {
+  position: relative;
   display: flex;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4) 0;
@@ -166,7 +167,28 @@ body {
 
 .tab.active {
   color: var(--fg);
-  border-bottom-color: var(--fg);
+}
+
+/* Trait de l'onglet actif : un seul élément qui glisse d'un onglet à
+   l'autre (translateX + largeur), au lieu d'un border qui apparaît et
+   disparaît. Même géométrie que l'ancien border : 2px, dont 1px
+   recouvrant la bordure de la nav. */
+.tab-underline {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--fg);
+  pointer-events: none;
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-underline {
+    transition: none;
+  }
 }
 
 /* ---- Main ---- */

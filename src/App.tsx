@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   TASKS,
   Task,
@@ -72,6 +72,24 @@ export default function App() {
   const [task, setTask] = useState<Task>(
     () => TASKS.find((t) => t.id === loadPrefs().task) ?? TASKS[0],
   );
+  /* Soulignement glissant de la barre d'onglets : position mesurée sur
+     l'onglet actif, animée en CSS d'un onglet à l'autre. */
+  const tabsRef = useRef<HTMLElement | null>(null);
+  const [tabUnderline, setTabUnderline] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const nav = tabsRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const active = nav.querySelector<HTMLElement>(".tab.active");
+      if (active) setTabUnderline({ left: active.offsetLeft, width: active.offsetWidth });
+    };
+    measure();
+    /* La largeur des onglets change avec la fenêtre et au chargement de la
+       police : on re-mesure dans ces deux cas. */
+    window.addEventListener("resize", measure);
+    document.fonts?.ready.then(measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [task.id]);
   const [targetLang, setTargetLang] = useState<string>(() => {
     const code = loadPrefs().targetLang;
     return TRANSLATE_LANGS.some((l) => l.code === code) ? code : TRANSLATE_LANGS[0].code;
@@ -481,7 +499,7 @@ export default function App() {
         </button>
       </header>
 
-      <nav className="tabs">
+      <nav className="tabs" ref={tabsRef}>
         {TASKS.map((t) => {
           const Icon = TASK_ICONS[t.id];
           return (
@@ -501,6 +519,16 @@ export default function App() {
             </button>
           );
         })}
+        {tabUnderline && (
+          <span
+            className="tab-underline"
+            aria-hidden="true"
+            style={{
+              transform: `translateX(${tabUnderline.left}px)`,
+              width: tabUnderline.width,
+            }}
+          />
+        )}
       </nav>
 
       <main className="main">
