@@ -124,7 +124,7 @@ body {
   color: var(--muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
 }
 
 .icon-btn:hover {
@@ -154,7 +154,7 @@ body {
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color 0.15s;
+  transition: color 0.15s, transform 0.1s;
 }
 
 .btn-icon {
@@ -275,7 +275,7 @@ textarea:focus {
   font-weight: var(--weight-medium);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
   white-space: nowrap;
 }
 
@@ -454,7 +454,7 @@ textarea:focus {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
 }
 
 .primary-btn:hover:not(:disabled) {
@@ -489,7 +489,7 @@ textarea:focus {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
 
 .ghost-btn:hover {
@@ -505,6 +505,18 @@ textarea:focus {
 .ghost-btn:disabled:hover {
   background: var(--bg);
   border-color: var(--border-strong);
+}
+
+/* Micro-enfoncement au clic/tap : retour tactile immédiat, surtout au
+   doigt. Chromium applique :active même aux boutons désactivés, d'où le
+   :not(:disabled) : un bouton grisé ne doit pas donner l'impression de
+   répondre. */
+.primary-btn:active:not(:disabled),
+.ghost-btn:active:not(:disabled),
+.pill:active:not(:disabled),
+.tab:active:not(:disabled),
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* Action destructive : neutre au repos, rouge plein au survol. */
