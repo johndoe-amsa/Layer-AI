@@ -21,7 +21,7 @@ import {
   FALLBACK_MODEL,
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
-import { diffWords } from "./lib/diff";
+import { diffWords, DiffSegment } from "./lib/diff";
 import { cleanInput, cleanOutput, normalizeDashes } from "./lib/text";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
 
@@ -128,24 +128,163 @@ function useAnimatedHeight<T extends HTMLElement>() {
   return [ref, height] as const;
 }
 
+/** Vrai si l'utilisateur a demandé à réduire les animations. */
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+// Dévoilement lissé : vitesse = base + retard × rattrapage (caractères/s). La
+// base garde un flux vivant même à jour ; le terme de rattrapage résorbe en
+// douceur un gros tampon (rafale réseau) sans à-coup, puis s'éteint en fin de
+// course. Réglés pour maintenir un petit retard constant : l'affichage coule
+// en continu au débit moyen du modèle, sans les paquets de mots du réseau.
+const REVEAL_BASE = 42;
+const REVEAL_CATCHUP = 6;
+
 /**
- * Rend un texte streamé en faisant apparaître chaque mot en fondu, pour éviter
- * l'effet saccadé du texte qui surgit par blocs. Les tokens gardent une clé
- * stable par position : le texte déjà posé n'est jamais ré-animé quand de
- * nouveaux morceaux arrivent, ni quand la sortie finale est renormalisée
- * (tirets). Le fondu n'est appliqué que pendant le streaming (`animate`), si
- * bien qu'une bascule ultérieure vers le diff — puis retour — ne le rejoue pas.
+ * Découple l'affichage du texte de la cadence irrégulière du réseau. Le flux
+ * reçu est mis en tampon dans `fullText` ; la portion réellement affichée le
+ * rattrape à vitesse lissée (requestAnimationFrame), caractère par caractère.
+ * On évite ainsi les mots qui surgissent par paquets : le texte se dévoile de
+ * façon continue et fluide. La boucle ne tourne que lorsqu'il reste à
+ * dévoiler, et s'efface (retour à zéro) dès qu'une nouvelle génération vide la
+ * sortie. Sous `prefers-reduced-motion`, le texte est rendu intégralement.
+ */
+function useSmoothReveal(fullText: string): string {
+  const countRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const lastRef = useRef<number | null>(null);
+  const fullRef = useRef(fullText);
+  const reduceRef = useRef(prefersReducedMotion());
+  const [, force] = useState(0);
+  fullRef.current = fullText;
+
+  // Nouvelle génération : la sortie repart de "" → on remet le curseur à zéro.
+  if (countRef.current > fullText.length) countRef.current = 0;
+
+  useEffect(() => {
+    if (reduceRef.current) return;
+    const tick = (now: number) => {
+      const dt = lastRef.current == null ? 0 : Math.min((now - lastRef.current) / 1000, 0.05);
+      lastRef.current = now;
+      const target = fullRef.current.length;
+      const gap = target - countRef.current;
+      if (gap > 0) {
+        const speed = REVEAL_BASE + gap * REVEAL_CATCHUP;
+        countRef.current = Math.min(target, countRef.current + speed * dt);
+        force((n) => n + 1);
+      }
+      if (countRef.current < fullRef.current.length) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+        lastRef.current = null;
+      }
+    };
+    if (rafRef.current == null && countRef.current < fullText.length) {
+      lastRef.current = null;
+      rafRef.current = requestAnimationFrame(tick);
+    }
+  }, [fullText]);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
+  return reduceRef.current ? fullText : fullText.slice(0, Math.floor(countRef.current));
+}
+
+/**
+ * Affiche le texte en cours de dévoilement caractère par caractère, chacun
+ * apparaissant en fondu (`.char-in`) : combiné au dévoilement lissé, le texte
+ * « s'écrit » de façon fluide au lieu de surgir. Clés stables par position →
+ * un caractère déjà posé n'est jamais ré-animé. Une fois le dévoilement fini
+ * (`animate` faux), on rend un simple nœud texte : aucun fondu ne rejoue à la
+ * bascule vers le diff, et le DOM reste léger.
  */
 function StreamingText({ text, animate }: { text: string; animate: boolean }) {
-  const tokens = useMemo(() => text.split(/(\s+)/), [text]);
+  const chars = useMemo(() => (animate ? Array.from(text) : null), [text, animate]);
+  if (!chars) return <>{text}</>;
   return (
     <>
-      {tokens.map((tok, i) => (
-        <span key={i} className={animate ? "tok-in" : undefined}>
-          {tok}
+      {chars.map((ch, i) => (
+        <span key={i} className="char-in">
+          {ch}
         </span>
       ))}
     </>
+  );
+}
+
+/**
+ * Contenu de la zone de sortie : soit le diff des modifications, soit le texte
+ * dévoilé de façon lissée pendant (et juste après) le streaming, soit le
+ * squelette à vide. Isolé dans son propre composant pour que le rafraîchissement
+ * image par image du dévoilement ne re-rende pas toute l'application.
+ */
+function OutputText({
+  output,
+  busy,
+  showDiff,
+  diffSegments,
+  hasChanges,
+}: {
+  output: string;
+  busy: boolean;
+  showDiff: boolean;
+  diffSegments: DiffSegment[] | null;
+  hasChanges: boolean;
+}) {
+  const displayed = useSmoothReveal(output);
+  // On reste en mode « dévoilement » tant que le réseau écrit ou que l'affichage
+  // n'a pas rattrapé : le curseur et le fondu couvrent aussi la fin de course.
+  const revealing = busy || displayed.length < output.length;
+
+  if (showDiff && diffSegments) {
+    return (
+      <div className="output-text diff-view">
+        {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
+        {diffSegments.map((s, k) => {
+          // Changements d'espaces seuls : on les affiche sans surlignage
+          // (insertion en clair, suppression masquée) pour ne garder en
+          // couleur que les vraies modifications de mots.
+          const isSpace = /^\s+$/.test(s.text);
+          if (s.op === "equal" || (isSpace && s.op === "insert")) {
+            return <span key={k}>{s.text}</span>;
+          }
+          if (isSpace) return null;
+          return s.op === "insert" ? (
+            <ins key={k} className="diff-ins">
+              {s.text}
+            </ins>
+          ) : (
+            <del key={k} className="diff-del">
+              {s.text}
+            </del>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="output-text">
+      <StreamingText text={displayed} animate={revealing} />
+      {!output && !busy && (
+        <div className="output-empty" aria-hidden="true">
+          <span className="skeleton-line" />
+          <span className="skeleton-line" />
+          <span className="skeleton-line" />
+        </div>
+      )}
+      {revealing && <span className="cursor" />}
+    </div>
   );
 }
 
@@ -569,42 +708,13 @@ export default function App() {
         style={bodyHeight != null ? { height: bodyHeight } : undefined}
       >
         <div className="output-body-inner" ref={bodyRef}>
-          {showDiff && diffSegments ? (
-            <div className="output-text diff-view">
-              {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
-              {diffSegments.map((s, k) => {
-                // Changements d'espaces seuls : on les affiche sans surlignage
-                // (insertion en clair, suppression masquée) pour ne garder en
-                // couleur que les vraies modifications de mots.
-                const isSpace = /^\s+$/.test(s.text);
-                if (s.op === "equal" || (isSpace && s.op === "insert")) {
-                  return <span key={k}>{s.text}</span>;
-                }
-                if (isSpace) return null;
-                return s.op === "insert" ? (
-                  <ins key={k} className="diff-ins">
-                    {s.text}
-                  </ins>
-                ) : (
-                  <del key={k} className="diff-del">
-                    {s.text}
-                  </del>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="output-text">
-              <StreamingText text={output} animate={busy} />
-              {!output && !busy && (
-                <div className="output-empty" aria-hidden="true">
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
-                  <span className="skeleton-line" />
-                </div>
-              )}
-              {busy && <span className="cursor" />}
-            </div>
-          )}
+          <OutputText
+            output={output}
+            busy={busy}
+            showDiff={showDiff}
+            diffSegments={diffSegments}
+            hasChanges={hasChanges}
+          />
         </div>
       </div>
     </div>

@@ -565,18 +565,19 @@ textarea:focus {
   min-height: 44px;
 }
 
-/* Fondu d'apparition, mot à mot pour le texte streamé et en bloc pour le
-   diff. `both` maintient l'état final : un mot déjà apparu reste opaque même
-   si sa classe est retirée (fin du streaming). */
-.tok-in {
-  animation: word-in 0.32s ease both;
+/* Fondu d'apparition : caractère par caractère pour le texte dévoilé (les
+   fondus se chevauchent le long du bord d'écriture → vague douce) et en bloc
+   pour le diff. `both` maintient l'état final : un caractère déjà apparu reste
+   opaque même si sa classe est retirée (fin du dévoilement). */
+.char-in {
+  animation: char-in 0.3s ease both;
 }
 
 .diff-view {
   animation: fade-in 0.25s ease both;
 }
 
-@keyframes word-in {
+@keyframes char-in {
   from {
     opacity: 0;
   }
@@ -601,7 +602,7 @@ textarea:focus {
     transition: none;
   }
 
-  .tok-in,
+  .char-in,
   .diff-view {
     animation: none;
   }
