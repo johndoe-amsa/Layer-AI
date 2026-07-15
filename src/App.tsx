@@ -162,6 +162,7 @@ const REVEAL_CATCHUP = 6;
  */
 function useSmoothReveal(fullText: string): string {
   const countRef = useRef(0);
+  const shownRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef<number | null>(null);
   const fullRef = useRef(fullText);
@@ -169,8 +170,14 @@ function useSmoothReveal(fullText: string): string {
   const [, force] = useState(0);
   fullRef.current = fullText;
 
-  // Nouvelle génération : la sortie repart de "" → on remet le curseur à zéro.
-  if (countRef.current > fullText.length) countRef.current = 0;
+  // Sortie raccourcie : soit une nouvelle génération (retour à ""), soit le
+  // rognage final des espaces de fin de ligne (cleanOutput). On borne le
+  // curseur à la nouvelle longueur — le remettre à zéro ré-écrirait tout le
+  // texte déjà affiché lors d'un simple rognage de fin.
+  if (countRef.current > fullText.length) {
+    countRef.current = fullText.length;
+    shownRef.current = fullText.length;
+  }
 
   useEffect(() => {
     if (reduceRef.current) return;
@@ -182,7 +189,13 @@ function useSmoothReveal(fullText: string): string {
       if (gap > 0) {
         const speed = REVEAL_BASE + gap * REVEAL_CATCHUP;
         countRef.current = Math.min(target, countRef.current + speed * dt);
-        force((n) => n + 1);
+        // Ne re-rendre que lorsqu'un caractère de plus devient visible : à la
+        // vitesse de base, certaines frames n'ajoutent encore aucun caractère.
+        const shown = Math.floor(countRef.current);
+        if (shown !== shownRef.current) {
+          shownRef.current = shown;
+          force((n) => n + 1);
+        }
       }
       if (countRef.current < fullRef.current.length) {
         rafRef.current = requestAnimationFrame(tick);
@@ -199,7 +212,10 @@ function useSmoothReveal(fullText: string): string {
 
   useEffect(
     () => () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     },
     [],
   );
