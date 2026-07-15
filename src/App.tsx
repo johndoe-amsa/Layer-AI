@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   TASKS,
   Task,
@@ -112,18 +112,25 @@ function useSlidingHighlight(
  * CSS interpole. La première mesure fixe la hauteur sans animation (elle vaut
  * la hauteur naturelle du moment) ; les suivantes — texte streamé, bascule du
  * diff, effacement — glissent en douceur, dans les deux sens.
+ *
+ * On passe par une ref-callback (et non un effet à montage unique) : la zone
+ * de sortie est démontée/remontée en changeant d'onglet (E-Mail l'affiche en
+ * haut, ailleurs en bas). Un observateur figé sur l'ancien nœud le mesurerait
+ * détaché (hauteur 0) et masquerait tout le contenu via overflow:hidden ; ici
+ * il se déconnecte puis se rebranche sur le nœud réellement monté.
  */
 function useAnimatedHeight<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
   const [height, setHeight] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
+  const roRef = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((el: T | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
     if (!el) return;
     const measure = () => setHeight(el.scrollHeight);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
   return [ref, height] as const;
 }
