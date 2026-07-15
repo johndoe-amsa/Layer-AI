@@ -270,6 +270,11 @@ function OutputText({
   const revealing = busy || displayed.length < output.length;
 
   if (showDiff && diffSegments) {
+    // Vague d'apparition : chaque modification démarre un peu après la
+    // précédente. On numérote les seules modifications réellement rendues pour
+    // que le décalage suive l'ordre de lecture (délai plafonné → reste vif sur
+    // les longs diffs) ; le CSS s'en sert via la variable `--d`.
+    let changeIdx = 0;
     return (
       <div className="output-text diff-view">
         {!hasChanges && <div className="diff-empty">Aucune correction nécessaire</div>}
@@ -282,12 +287,13 @@ function OutputText({
             return <span key={k}>{s.text}</span>;
           }
           if (isSpace) return null;
+          const style = { "--d": `${Math.min(changeIdx++ * 28, 336)}ms` } as React.CSSProperties;
           return s.op === "insert" ? (
-            <ins key={k} className="diff-ins">
+            <ins key={k} className="diff-ins" style={style}>
               {s.text}
             </ins>
           ) : (
-            <del key={k} className="diff-del">
+            <del key={k} className="diff-del" style={style}>
               {s.text}
             </del>
           );
