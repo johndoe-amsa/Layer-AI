@@ -543,11 +543,57 @@ textarea:focus {
   margin-bottom: var(--space-3);
 }
 
+/* Corps de la sortie : sa hauteur (mesurée en JS sur `.output-body-inner`)
+   est interpolée pour lisser l'apparition du texte streamé, la bascule vers
+   le diff et le retour à l'état vide (effacement). overflow caché pour que
+   le contenu soit révélé par la hauteur qui grandit, sans déborder du cadre. */
+.output-body {
+  overflow: hidden;
+  transition: height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Pendant le streaming, la hauteur suit de plus près le contenu : le texte le
+   plus récent n'est jamais masqué le temps que le cadre le rattrape. */
+.output-body.streaming {
+  transition-duration: 0.18s;
+}
+
 .output-text {
   white-space: pre-wrap;
   line-height: var(--leading-relaxed);
   font-size: var(--text-md);
   min-height: 44px;
+}
+
+/* Fondu d'apparition : caractère par caractère pour le texte dévoilé (les
+   fondus se chevauchent le long du bord d'écriture → vague douce) et en bloc
+   pour le diff. `both` maintient l'état final : un caractère déjà apparu reste
+   opaque même si sa classe est retirée (fin du dévoilement). */
+.char-in {
+  animation: char-in 0.3s ease both;
+}
+
+@keyframes char-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Accessibilité : pas d'animation si l'utilisateur la refuse. La hauteur
+   s'ajuste instantanément et le texte dévoilé reste visible. (Les overrides du
+   diff sont plus bas, après ses règles animées : une media query n'ajoute pas
+   de spécificité, l'override doit donc venir en dernier pour l'emporter.) */
+@media (prefers-reduced-motion: reduce) {
+  .output-body {
+    transition: none;
+  }
+
+  .char-in {
+    animation: none;
+  }
 }
 
 /* État vide : squelette de texte suggérant la réponse à venir. */
@@ -645,18 +691,67 @@ textarea:focus {
   transform: translateX(16px);
 }
 
+/* Entrée du diff (activation de « Modifications ») : chaque modification se
+   révèle en léger décalage (`--d`), formant une vague de gauche à droite. Le
+   texte occupe sa place définitive dès le départ (on n'anime que couleur /
+   surlignage / opacité, jamais la mise en page) : rien ne saute pendant la
+   vague, seule la hauteur du cadre est animée, par ailleurs. */
 .diff-ins {
-  background: var(--ok-bg);
   color: var(--ok-fg);
   text-decoration: none;
   border-radius: 3px;
   padding: 0 1px;
+  /* Surlignage posé en image pour pouvoir le faire « balayer » via
+     background-size ; état de repos (et reduced-motion) = plein. */
+  background-image: linear-gradient(var(--ok-bg), var(--ok-bg));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: ins-sweep 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
 }
 
 .diff-del {
   color: var(--error-fg);
   text-decoration: line-through;
   opacity: 0.7;
+  animation: del-in 0.45s ease both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Insertion : le surlignage vert balaie le mot de gauche à droite, le texte
+   passe de la couleur courante au vert. */
+@keyframes ins-sweep {
+  from {
+    background-size: 0% 100%;
+    color: var(--fg);
+  }
+  to {
+    background-size: 100% 100%;
+    color: var(--ok-fg);
+  }
+}
+
+/* Suppression : le mot (déjà en place et barré) vire de la couleur du texte au
+   rouge quand la vague l'atteint. On n'anime pas l'opacité : le glyphe reste
+   visible du début à la fin, donc aucun « trou » ne s'ouvre dans le texte. */
+@keyframes del-in {
+  from {
+    color: var(--fg);
+  }
+  to {
+    color: var(--error-fg);
+  }
+}
+
+/* Diff sans animation si l'utilisateur réduit les mouvements : l'état de repos
+   (insertions surlignées en plein, suppressions rouges barrées) s'affiche
+   d'emblée. Bloc placé après les règles animées ci-dessus, sinon la media query
+   — sans spécificité supplémentaire — serait écrasée par celles-ci. */
+@media (prefers-reduced-motion: reduce) {
+  .diff-ins,
+  .diff-del {
+    animation: none;
+  }
 }
 
 .diff-empty {
