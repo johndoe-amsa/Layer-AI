@@ -903,6 +903,24 @@ textarea:focus {
   border-color: var(--fg);
 }
 
+/* Menus déroulants du panneau (thème, modèles) : mêmes cadres que les
+   champs de saisie. */
+.panel select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--fg);
+  background: var(--bg);
+  outline: none;
+  cursor: pointer;
+}
+
+.panel select:focus {
+  border-color: var(--fg);
+}
+
 /* Zone de texte des réglages (profil Répondre) : plus compacte que celles
    de l'écran principal. */
 .panel textarea {
@@ -947,22 +965,12 @@ textarea:focus {
   color: var(--fg);
 }
 
+/* Dans une ligne de modèle : plus compact, prend la largeur restante. */
 .model-row select {
   flex: 1;
   min-width: 0;
   padding: var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  font: inherit;
   font-size: var(--text-sm);
-  color: var(--fg);
-  background: var(--bg);
-  outline: none;
-  cursor: pointer;
-}
-
-.model-row select:focus {
-  border-color: var(--fg);
 }
 
 /* Ligne d'option : libellé à gauche, interrupteur poussé à droite. */

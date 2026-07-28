@@ -1107,8 +1107,21 @@ function SettingsPanel({
         </section>
 
         <section className="field">
-          <span className="field-label">Apparence</span>
-          <PillOptions options={THEMES} value={theme} onChange={setTheme} />
+          <label className="field-label" htmlFor="theme">
+            Apparence
+          </label>
+          <select
+            id="theme"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as Theme)}
+          >
+            {THEMES.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.label}
+                {t.code === "system" ? " · défaut" : ""}
+              </option>
+            ))}
+          </select>
         </section>
 
         {isDesktop && (
