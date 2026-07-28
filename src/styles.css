@@ -1,5 +1,6 @@
 :root {
   /* ---- Couleurs ---- */
+  color-scheme: light;
   --bg: #ffffff;
   --fg: #171717;
   --muted: #666666;
@@ -12,6 +13,11 @@
   --ok-fg: #1a7f37;
   --ok-bg: #e6f4ea;
   --hover: #f5f5f5;
+  /* Fond légèrement en retrait (zone de sortie, survol des boutons). */
+  --surface: #fafafa;
+  /* Pilule active du segmented control : toujours plus claire que sa piste. */
+  --thumb: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.3);
 
   /* ---- Échelle typographique ----
      5 niveaux, du plus discret (légendes) au titre. On ne pioche que
@@ -48,6 +54,27 @@
   --radius-xl: 12px;
 
   font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+
+/* ---- Thème sombre ----
+   Activé par data-theme="dark" sur <html> (réglage Apparence, ou thème du
+   système). Seules les couleurs changent, jamais la géométrie.
+   color-scheme: dark aligne aussi les éléments natifs (scrollbars, select). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f0f0f;
+  --fg: #ededed;
+  --muted: #9d9d9d;
+  --border: #262626;
+  --border-strong: #404040;
+  --error-bg: #2a1416;
+  --error-fg: #ff6166;
+  --ok-fg: #3fb950;
+  --ok-bg: #12291b;
+  --hover: #1e1e1e;
+  --surface: #171717;
+  --thumb: #3d3d3d;
+  --overlay: rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -221,6 +248,9 @@ textarea {
   padding: var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
+  /* Explicite : sans lui, le webview prendrait sa couleur « field » native,
+     qui ne suit pas exactement la palette des deux thèmes. */
+  background: var(--bg);
   font: inherit;
   line-height: var(--leading-normal);
   color: inherit;
@@ -295,7 +325,7 @@ textarea:focus {
   position: absolute;
   top: 0;
   left: 0;
-  background: var(--bg);
+  background: var(--thumb);
   border-radius: var(--radius-sm);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   pointer-events: none;
@@ -493,7 +523,7 @@ textarea:focus {
 }
 
 .ghost-btn:hover {
-  background: #fafafa;
+  background: var(--surface);
   border-color: var(--fg);
 }
 
@@ -531,7 +561,7 @@ textarea:focus {
   position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: #fafafa;
+  background: var(--surface);
   padding: var(--space-3);
 }
 
@@ -815,7 +845,7 @@ textarea:focus {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -863,6 +893,7 @@ textarea:focus {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
+  background: var(--bg);
   font: inherit;
   color: var(--fg);
   outline: none;

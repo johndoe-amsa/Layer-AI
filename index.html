@@ -2,6 +2,20 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Anti-flash : pose le thème avant le chargement du bundle, avec la
+      // même logique que applyTheme (src/lib/settings.ts).
+      (function () {
+        var theme = "system";
+        try {
+          theme = JSON.parse(localStorage.getItem("layer-ai-settings")).theme || "system";
+        } catch (e) {}
+        var dark =
+          theme === "dark" ||
+          (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
