@@ -9,6 +9,42 @@ export interface Settings {
    * (signature, tutoiement/vouvoiement, préférences de style). Optionnel.
    */
   replyProfile: string;
+  /** Thème d'interface : clair, sombre, ou celui du système (défaut). */
+  theme: Theme;
+}
+
+export type Theme = "light" | "dark" | "system";
+
+/** Choix de thème proposés dans les réglages. */
+export const THEMES: { code: Theme; label: string }[] = [
+  { code: "light", label: "Clair" },
+  { code: "dark", label: "Sombre" },
+  { code: "system", label: "Système" },
+];
+
+// Requête média observée pour le mode « Système » : quand l'OS bascule
+// clair/sombre, l'app suit en direct sans rechargement.
+const darkQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+let currentTheme: Theme = "system";
+
+function syncTheme() {
+  const dark =
+    currentTheme === "dark" || (currentTheme === "system" && !!darkQuery?.matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  // Barre du navigateur (PWA iPhone) assortie au fond de l'app.
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", dark ? "#0f0f0f" : "#ffffff");
+}
+
+darkQuery?.addEventListener("change", () => {
+  if (currentTheme === "system") syncTheme();
+});
+
+/** Pose le thème sur `<html>` (attribut `data-theme`, lu par le CSS). */
+export function applyTheme(theme: Theme) {
+  currentTheme = theme;
+  syncTheme();
 }
 
 const KEY = "layer-ai-settings";
@@ -47,12 +83,20 @@ export function loadSettings(): Settings {
         autoPaste: parsed.autoPaste ?? true,
         replyProfile: parsed.replyProfile ?? "",
         models: { ...DEFAULT_MODELS, ...(parsed.models ?? {}) },
+        theme:
+          parsed.theme === "light" || parsed.theme === "dark" ? parsed.theme : "system",
       };
     }
   } catch {
     // stockage corrompu : on repart de zéro
   }
-  return { apiKey: "", autoPaste: true, replyProfile: "", models: { ...DEFAULT_MODELS } };
+  return {
+    apiKey: "",
+    autoPaste: true,
+    replyProfile: "",
+    models: { ...DEFAULT_MODELS },
+    theme: "system",
+  };
 }
 
 export function saveSettings(s: Settings) {

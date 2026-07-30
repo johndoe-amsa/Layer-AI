@@ -15,7 +15,10 @@ import {
   saveSettings,
   loadPrefs,
   savePrefs,
+  applyTheme,
   Settings,
+  Theme,
+  THEMES,
   MODELS,
   DEFAULT_MODELS,
   FALLBACK_MODEL,
@@ -405,6 +408,11 @@ export default function App() {
   useEffect(() => {
     autoPasteRef.current = settings.autoPaste;
   }, [settings.autoPaste]);
+
+  // Applique le thème enregistré (clair, sombre ou système).
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
 
   // Même besoin pour l'onglet courant : le handler d'ouverture (enregistré une
   // seule fois) doit savoir où coller le presse-papier.
@@ -1027,6 +1035,14 @@ function SettingsPanel({
   const [models, setModels] = useState<Record<string, string>>(settings.models);
   const [autoPaste, setAutoPaste] = useState(settings.autoPaste);
   const [replyProfile, setReplyProfile] = useState(settings.replyProfile);
+  const [theme, setTheme] = useState<Theme>(settings.theme);
+
+  // Aperçu immédiat du thème pendant le choix ; à la fermeture du panneau,
+  // retour au thème enregistré (identique si l'on vient d'enregistrer).
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+  useEffect(() => () => applyTheme(loadSettings().theme), []);
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -1090,6 +1106,24 @@ function SettingsPanel({
           </p>
         </section>
 
+        <section className="field">
+          <label className="field-label" htmlFor="theme">
+            Apparence
+          </label>
+          <select
+            id="theme"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as Theme)}
+          >
+            {THEMES.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.label}
+                {t.code === "system" ? " · défaut" : ""}
+              </option>
+            ))}
+          </select>
+        </section>
+
         {isDesktop && (
           <section className="field">
             <span className="field-label">Comportement</span>
@@ -1118,7 +1152,13 @@ function SettingsPanel({
           <button
             className="primary-btn"
             onClick={() =>
-              onSave({ apiKey: apiKey.trim(), models, autoPaste, replyProfile: replyProfile.trim() })
+              onSave({
+                apiKey: apiKey.trim(),
+                models,
+                autoPaste,
+                replyProfile: replyProfile.trim(),
+                theme,
+              })
             }
           >
             Enregistrer
