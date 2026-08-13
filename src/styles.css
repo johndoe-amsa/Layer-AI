@@ -967,12 +967,58 @@ textarea:focus {
   }
 }
 
+/* ---- Message d'erreur ----
+   Trois niveaux de lecture : ce qui s'est passé (titre), quoi faire (phrase),
+   et le message brut d'OpenAI en petit pour les cas non prévus. Le bouton
+   d'action ferme la boucle — on ne laisse jamais l'utilisateur en plan. */
 .error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--error-bg);
   color: var(--error-fg);
   font-size: var(--text-base);
+}
+
+/* L'icône s'aligne sur la première ligne du titre, pas sur le milieu du bloc. */
+.error > .btn-icon {
+  margin-top: 2px;
+}
+
+.error-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Autorise le bloc à rétrécir sous la largeur de son contenu : sans ça, un
+     détail sans espace (une URL) élargirait toute la carte. */
+  min-width: 0;
+}
+
+.error-title {
+  font-weight: var(--weight-semibold);
+}
+
+/* Explication et détail en couleur de texte courante : tout en rouge, la
+   phrase deviendrait pénible à lire. */
+.error-hint {
+  color: var(--fg);
+  line-height: var(--leading-normal);
+}
+
+.error-detail {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  /* Message d'origine parfois long et insécable (URL) : on le renvoie à la
+     ligne plutôt que de le laisser déborder du cadre. */
+  overflow-wrap: anywhere;
+}
+
+.error .ghost-btn {
+  align-self: flex-start;
+  margin-top: var(--space-1);
 }
 
 /* ---- Footer ---- */
@@ -1004,18 +1050,71 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(12px);
+  animation: overlay-in 0.2s ease both;
 }
 
 .panel {
   width: min(420px, calc(100vw - 2 * var(--space-4)));
+  /* Le panneau ne dépasse jamais de la fenêtre : au-delà, ce sont les réglages
+     qui défilent (voir .panel-body). Indispensable dans la fenêtre du .exe
+     (480 × 720), plus courte que le panneau au complet. */
+  max-height: calc(100dvh - 2 * var(--space-5));
   background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   box-shadow: var(--elevation-2);
+  animation: panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Le panneau monte et se pose ; l'arrière-plan se voile en même temps. */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Seuls les réglages défilent : le titre et les boutons Annuler / Enregistrer
+   restent en place, toujours atteignables. */
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-y: auto;
+  /* Débord compensé : l'anneau de focus des champs déborde d'un pixel, que la
+     zone de défilement rognerait sans cette réserve. */
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-1) var(--space-2);
+  /* Ombre de défilement, sans une ligne de JavaScript : les deux dégradés
+     `local` (couleur du fond) suivent le contenu et viennent recouvrir les
+     ombres fixes lorsqu'on arrive en butée. Une ombre n'apparaît donc d'un
+     côté que s'il reste des réglages à atteindre — sans quoi rien ne
+     signalerait, dans une fenêtre courte, que le panneau continue plus bas. */
+  background:
+    linear-gradient(var(--bg), transparent) top / 100% 16px no-repeat local,
+    linear-gradient(transparent, var(--bg)) bottom / 100% 16px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, var(--scrollbar), transparent) top / 100% 7px
+      no-repeat,
+    radial-gradient(farthest-side at 50% 100%, var(--scrollbar), transparent) bottom / 100% 7px
+      no-repeat;
 }
 
 .panel h2 {
@@ -1159,6 +1258,13 @@ textarea:focus {
   margin-top: var(--space-1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .panel {
+    animation: none;
+  }
+}
+
 /* ---- Tactile (iPhone, tablettes) ---- */
 /* Ciblé sur les écrans tactiles uniquement → aucun impact sur le .exe
    ni sur la version web au clavier/souris. */
@@ -1189,5 +1295,36 @@ textarea:focus {
 
   .icon-btn {
     padding: var(--space-2);
+  }
+}
+
+/* ---- Réglages en feuille du bas (téléphone) ----
+   Sur un écran tactile étroit, une boîte flottante centrée se manipule mal :
+   le panneau vient du bas, collé au bord, à portée du pouce.
+
+   Condition sur `pointer: coarse` et non sur la seule largeur : la fenêtre du
+   .exe fait 480 px de large et basculerait sinon en feuille du bas sur un
+   poste de bureau, à la souris. */
+@media (pointer: coarse) and (max-width: 768px) {
+  .overlay {
+    align-items: flex-end;
+  }
+
+  .panel {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    /* Dégage la barre d'accueil iPhone sous les boutons. */
+    padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+    animation-name: sheet-in;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
   }
 }

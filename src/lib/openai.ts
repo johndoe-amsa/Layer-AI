@@ -1,6 +1,19 @@
+import { ApiError, classifyStatus } from "./errors";
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+}
+
+/**
+ * Un arrêt volontaire (bouton Stop) remonte tel quel : l'appelant le
+ * reconnaît à son nom et n'affiche alors aucune erreur. Tout le reste, à ce
+ * niveau, est une panne de transport — hors ligne, DNS, proxy d'entreprise —
+ * que `fetch` signale par un TypeError sans détail exploitable.
+ */
+function asNetworkError(e: unknown): never {
+  if ((e as Error)?.name === "AbortError") throw e;
+  throw new ApiError("network");
 }
 
 /**
@@ -14,27 +27,35 @@ export async function streamCompletion(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    // Température basse : on privilégie la fidélité et la régularité
-    // (correction, traduction, reformulation) plutôt que la créativité.
-    body: JSON.stringify({ model, messages, stream: true, temperature: 0.2 }),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      // Température basse : on privilégie la fidélité et la régularité
+      // (correction, traduction, reformulation) plutôt que la créativité.
+      body: JSON.stringify({ model, messages, stream: true, temperature: 0.2 }),
+      signal,
+    });
+  } catch (e) {
+    asNetworkError(e);
+  }
 
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
     try {
       const err = await res.json();
       detail = err?.error?.message ?? detail;
+      // OpenAI place tantôt un `code`, tantôt seulement un `type`.
+      code = err?.error?.code ?? err?.error?.type;
     } catch {
       // corps non JSON, on garde statusText
     }
-    throw new Error(detail);
+    throw new ApiError(classifyStatus(res.status, code), detail);
   }
 
   const reader = res.body!.getReader();
@@ -42,7 +63,15 @@ export async function streamCompletion(
   let buffer = "";
 
   for (;;) {
-    const { done, value } = await reader.read();
+    // La connexion peut aussi lâcher en plein streaming (wifi qui saute) :
+    // le texte déjà reçu reste affiché, l'erreur s'ajoute en dessous.
+    let chunk;
+    try {
+      chunk = await reader.read();
+    } catch (e) {
+      asNetworkError(e);
+    }
+    const { done, value } = chunk;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 

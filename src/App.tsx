@@ -24,6 +24,7 @@ import {
   FALLBACK_MODEL,
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
+import { describeError } from "./lib/errors";
 import { diffWords, DiffSegment } from "./lib/diff";
 import { cleanInput, cleanOutput, normalizeDashes } from "./lib/text";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
@@ -391,7 +392,7 @@ export default function App() {
   const [sourceText, setSourceText] = useState("");
   const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -445,7 +446,7 @@ export default function App() {
         } else if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
           setOutput("");
-          setError("");
+          setError(null);
         }
       }
       inputRef.current?.focus();
@@ -467,13 +468,30 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (showSettings) setShowSettings(false);
+        if (showSettings) closeSettings();
         else hideWindow();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showSettings]);
+
+  // Élément qui a ouvert les réglages — l'engrenage, le bouton d'un message
+  // d'erreur, ou « Lancer » quand la clé manque. On lui rend le focus à la
+  // fermeture : au clavier, on repart d'où l'on était et non du début de la
+  // page. Capturé à l'ouverture et non au montage du panneau : `autoFocus` a
+  // déjà déplacé le focus dans le panneau à ce moment-là.
+  const settingsOpenerRef = useRef<HTMLElement | null>(null);
+
+  function openSettings() {
+    settingsOpenerRef.current = document.activeElement as HTMLElement | null;
+    setShowSettings(true);
+  }
+
+  function closeSettings() {
+    setShowSettings(false);
+    settingsOpenerRef.current?.focus?.();
+  }
 
   function run() {
     return generate(input);
@@ -485,14 +503,14 @@ export default function App() {
   async function generate(rawText: string) {
     if (!rawText.trim() || busy) return;
     if (!settings.apiKey) {
-      setShowSettings(true);
+      openSettings();
       return;
     }
     // Texte nettoyé des artefacts de copier-coller (Outlook, Word…) avant
     // envoi et comparaison, pour éviter les espaces parasites.
     const text = cleanInput(rawText);
     setBusy(true);
-    setError("");
+    setError(null);
     setOutput("");
     setShowDiff(false);
     setSourceText(text);
@@ -545,7 +563,7 @@ export default function App() {
         return task.id === "translate" ? out : normalizeDashes(out);
       });
     } catch (e) {
-      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+      if ((e as Error).name !== "AbortError") setError(e);
     } finally {
       setBusy(false);
     }
@@ -617,7 +635,7 @@ export default function App() {
   function reuseOutput() {
     setInput(output);
     setOutput("");
-    setError("");
+    setError(null);
     // La sortie disparaît : on quitte l'affichage des modifications pour ne pas
     // diffuser l'ancien texte source contre une sortie vide (tout en rouge).
     setShowDiff(false);
@@ -642,7 +660,7 @@ export default function App() {
     setTask(rephrase);
     setInput(output);
     setOutput("");
-    setError("");
+    setError(null);
     setShowDiff(false);
     inputRef.current?.focus();
   }
@@ -666,6 +684,19 @@ export default function App() {
     diffSegments?.some((s) => s.op !== "equal" && !/^\s+$/.test(s.text)) ?? false;
 
   const filledCount = thread.filter((m) => m.text.trim()).length;
+
+  // Zone d'erreur, placée comme la zone de réponse : au-dessus de la saisie en
+  // mode Répondre, en dessous ailleurs. « Réessayer » relance sur le texte
+  // figé au dernier lancement, pas sur la saisie courante — c'est bien la
+  // demande qui a échoué que l'on rejoue.
+  const errorZone = error ? (
+    <ErrorNotice
+      error={error}
+      busy={busy}
+      onRetry={() => generate(sourceText)}
+      onOpenSettings={openSettings}
+    />
+  ) : null;
 
   // Zone de réponse, extraite pour être placée en tête en mode Répondre
   // (la réponse reste ainsi visible sans scroller) et en bas ailleurs.
@@ -764,7 +795,7 @@ export default function App() {
           <span className="brand-dot" />
           Layer AI
         </div>
-        <button className="icon-btn" title="Réglages" onClick={() => setShowSettings(true)}>
+        <button className="icon-btn" title="Réglages" onClick={openSettings}>
           <GearIcon />
         </button>
       </header>
@@ -780,7 +811,7 @@ export default function App() {
                 if (t.id === task.id) return;
                 setTask(t);
                 setOutput("");
-                setError("");
+                setError(null);
                 setShowDiff(false);
               }}
             >
@@ -807,7 +838,7 @@ export default function App() {
         {task.id === "reply" && (
           <>
             {outputZone}
-            {error && <div className="error">{error}</div>}
+            {errorZone}
           </>
         )}
         <div className="input-zone">
@@ -840,7 +871,7 @@ export default function App() {
                 onClick={() => {
                   setInput("");
                   setOutput("");
-                  setError("");
+                  setError(null);
                   setShowDiff(false);
                   if (task.id === "reply") resetThread();
                 }}
@@ -870,7 +901,7 @@ export default function App() {
 
         {task.id !== "reply" && (
           <>
-            {error && <div className="error">{error}</div>}
+            {errorZone}
             {outputZone}
           </>
         )}
@@ -976,9 +1007,9 @@ export default function App() {
           onSave={(s) => {
             setSettings(s);
             saveSettings(s);
-            setShowSettings(false);
+            closeSettings();
           }}
-          onClose={() => setShowSettings(false)}
+          onClose={closeSettings}
         />
       )}
     </div>
@@ -1022,6 +1053,48 @@ function GrowingTextarea({
   );
 }
 
+/**
+ * Message d'échec, en trois temps : ce qui s'est passé, quoi faire, et le
+ * bouton qui permet de le faire. Le message d'origine d'OpenAI (anglais,
+ * technique) est relégué en dessous, en petit : utile pour un cas non prévu,
+ * mais ce n'est pas ce qu'on lit en premier.
+ */
+function ErrorNotice({
+  error,
+  busy,
+  onRetry,
+  onOpenSettings,
+}: {
+  error: unknown;
+  busy: boolean;
+  onRetry: () => void;
+  onOpenSettings: () => void;
+}) {
+  const { title, hint, detail, action } = describeError(error);
+  return (
+    <div className="error" role="alert">
+      <AlertIcon />
+      <div className="error-body">
+        <p className="error-title">{title}</p>
+        <p className="error-hint">{hint}</p>
+        {detail && <p className="error-detail">{detail}</p>}
+        {action === "retry" && (
+          <button className="ghost-btn" onClick={onRetry} disabled={busy}>
+            <RefreshIcon />
+            Réessayer
+          </button>
+        )}
+        {action === "settings" && (
+          <button className="ghost-btn" onClick={onOpenSettings}>
+            <GearIcon />
+            Ouvrir les réglages
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsPanel({
   settings,
   onSave,
@@ -1044,106 +1117,146 @@ function SettingsPanel({
   }, [theme]);
   useEffect(() => () => applyTheme(loadSettings().theme), []);
 
+  // Piège à focus : tant que le panneau est ouvert, Tab tourne à l'intérieur
+  // au lieu d'aller visiter l'application masquée derrière lui.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const stops = [
+        ...panel.querySelectorAll<HTMLElement>("input, select, textarea, button"),
+      ].filter((el) => !el.hasAttribute("disabled"));
+      if (!stops.length) return;
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      // Aux deux extrémités seulement : ailleurs, l'enchaînement natif suffit.
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    panel.addEventListener("keydown", onKeyDown);
+    return () => panel.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="panel" onClick={(e) => e.stopPropagation()}>
-        <h2>Réglages</h2>
+      <div
+        className="panel"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="settings-title">Réglages</h2>
 
-        <section className="field">
-          <label className="field-label" htmlFor="api-key">
-            Clé API OpenAI
-          </label>
-          <input
-            id="api-key"
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-…"
-            autoFocus
-          />
-          <p className="field-hint">
-            Stockée uniquement sur cet appareil (localStorage). Les requêtes partent
-            directement vers l'API OpenAI, sans serveur intermédiaire.
-          </p>
-        </section>
-
-        <section className="field">
-          <span className="field-label">Modèle par mode</span>
-          <div className="card">
-            {TASKS.map((t) => (
-              <div key={t.id} className="model-row">
-                <span className="model-mode">{t.label}</span>
-                <select
-                  value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
-                  onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
-                >
-                  {MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                      {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="field">
-          <label className="field-label" htmlFor="reply-profile">
-            E-Mail · à propos de toi
-          </label>
-          <textarea
-            id="reply-profile"
-            value={replyProfile}
-            onChange={(e) => setReplyProfile(e.target.value)}
-            placeholder="Ex. : signe « Thomas », tutoie mes collègues, réponses courtes et directes…"
-            spellCheck={false}
-          />
-          <p className="field-hint">
-            Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
-            signature et ta façon d'écrire.
-          </p>
-        </section>
-
-        <section className="field">
-          <label className="field-label" htmlFor="theme">
-            Apparence
-          </label>
-          <select
-            id="theme"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as Theme)}
-          >
-            {THEMES.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.label}
-                {t.code === "system" ? " · défaut" : ""}
-              </option>
-            ))}
-          </select>
-        </section>
-
-        {isDesktop && (
+        {/* Seuls les réglages défilent : le titre et les boutons Annuler /
+            Enregistrer restent visibles. Sans quoi, dans la fenêtre du .exe
+            (480 × 720), le panneau dépasse et se retrouve rogné en haut comme
+            en bas, sans aucun moyen d'atteindre ce qui déborde. */}
+        <div className="panel-body">
           <section className="field">
-            <span className="field-label">Comportement</span>
+            <label className="field-label" htmlFor="api-key">
+              Clé API OpenAI
+            </label>
+            <input
+              id="api-key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-…"
+              autoFocus
+            />
+            <p className="field-hint">
+              Stockée uniquement sur cet appareil (localStorage). Les requêtes partent
+              directement vers l'API OpenAI, sans serveur intermédiaire.
+            </p>
+          </section>
+
+          <section className="field">
+            <span className="field-label">Modèle par mode</span>
             <div className="card">
-              <label className="option-row">
-                <span className="option-text">
-                  Coller automatiquement le presse-papier à l'ouverture
-                </span>
-                <span className="switch">
-                  <input
-                    type="checkbox"
-                    checked={autoPaste}
-                    onChange={(e) => setAutoPaste(e.target.checked)}
-                  />
-                  <span className="slider" />
-                </span>
-              </label>
+              {TASKS.map((t) => (
+                <div key={t.id} className="model-row">
+                  <span className="model-mode">{t.label}</span>
+                  <select
+                    value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
+                    onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
+                  >
+                    {MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                        {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
           </section>
-        )}
+
+          <section className="field">
+            <label className="field-label" htmlFor="reply-profile">
+              E-Mail · à propos de toi
+            </label>
+            <textarea
+              id="reply-profile"
+              value={replyProfile}
+              onChange={(e) => setReplyProfile(e.target.value)}
+              placeholder="Ex. : signe « Thomas », tutoie mes collègues, réponses courtes et directes…"
+              spellCheck={false}
+            />
+            <p className="field-hint">
+              Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
+              signature et ta façon d'écrire.
+            </p>
+          </section>
+
+          <section className="field">
+            <label className="field-label" htmlFor="theme">
+              Apparence
+            </label>
+            <select
+              id="theme"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as Theme)}
+            >
+              {THEMES.map((t) => (
+                <option key={t.code} value={t.code}>
+                  {t.label}
+                  {t.code === "system" ? " · défaut" : ""}
+                </option>
+              ))}
+            </select>
+          </section>
+
+          {isDesktop && (
+            <section className="field">
+              <span className="field-label">Comportement</span>
+              <div className="card">
+                <label className="option-row">
+                  <span className="option-text">
+                    Coller automatiquement le presse-papier à l'ouverture
+                  </span>
+                  <span className="switch">
+                    <input
+                      type="checkbox"
+                      checked={autoPaste}
+                      onChange={(e) => setAutoPaste(e.target.checked)}
+                    />
+                    <span className="slider" />
+                  </span>
+                </label>
+              </div>
+            </section>
+          )}
+        </div>
 
         <div className="panel-actions">
           <button className="ghost-btn" onClick={onClose}>
@@ -1171,10 +1284,20 @@ function SettingsPanel({
 
 function GearIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <Icon>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+    </Icon>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </Icon>
   );
 }
 
