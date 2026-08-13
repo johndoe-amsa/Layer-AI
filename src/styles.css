@@ -1046,36 +1046,22 @@ textarea:focus {
 .overlay {
   position: fixed;
   inset: 0;
-  /* iOS : un élément `fixed` se positionne dans le viewport de mise en page,
-     qui reste à la hauteur plein écran même quand les barres de Safari sont
-     affichées. `bottom: 0` tombe donc *sous* la barre du bas, et le panneau —
-     collé en bas sur téléphone — se retrouve en partie hors écran, sa barre de
-     boutons hors d'atteinte. `100dvh` le ramène à la hauteur réellement
-     visible. Sans effet ailleurs, où dvh vaut vh. */
-  height: 100dvh;
   background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(2px);
   animation: overlay-in 0.2s ease both;
 }
 
 .panel {
   width: min(420px, calc(100vw - 2 * var(--space-4)));
-  /* Le panneau ne dépasse jamais de la fenêtre : au-delà, ce sont les réglages
-     qui défilent (voir .panel-body). Indispensable dans la fenêtre du .exe
-     (480 × 720), plus courte que le panneau au complet. */
-  max-height: calc(100dvh - 2 * var(--space-5));
   background: var(--bg);
-  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  /* Aucun padding ni gap ici : le panneau est fait de trois bandes — titre,
-     réglages, boutons — qui portent chacune le leur. C'est ce qui permet aux
-     filets de séparation d'aller d'un bord à l'autre. */
-  overflow: hidden;
+  gap: var(--space-4);
   box-shadow: var(--elevation-2);
   animation: panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1101,34 +1087,7 @@ textarea:focus {
   }
 }
 
-/* Seuls les réglages défilent : le titre et les boutons Annuler / Enregistrer
-   restent en place, toujours atteignables. Le filet qui borde ces deux bandes
-   est ce qui rend le défilement lisible : une ligne de texte coupée net sous
-   un trait se lit comme « ça continue au-dessus », alors que la même coupure
-   dans le vide passe pour un défaut d'affichage. */
-.panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  overflow-y: auto;
-  padding: var(--space-5);
-  /* Un élément de flexbox refuse par défaut de descendre sous la hauteur de
-     son contenu. La règle qui ramène ce minimum à zéro pour un conteneur
-     défilant n'est pas appliquée de la même façon partout : sans ce `0`
-     explicite, WebKit laisse la bande grandir jusqu'à son contenu, le panneau
-     déborde de sa hauteur maximale, et il n'y a tout simplement plus rien à
-     faire défiler. C'est la cause du « scroll cassé » sur iPhone. */
-  min-height: 0;
-  /* Arrivé en butée, le geste ne se propage pas à la page derrière : sur
-     mobile, c'est elle qui bougeait à la place du panneau. */
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
 .panel h2 {
-  flex-shrink: 0;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
@@ -1263,12 +1222,10 @@ textarea:focus {
 }
 
 .panel-actions {
-  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--border);
+  margin-top: var(--space-1);
 }
 
 /* Sortie plus rapide que l'entrée (150 ms contre 300) et sans le léger rebond
@@ -1344,48 +1301,3 @@ textarea:focus {
   }
 }
 
-/* ---- Réglages en feuille du bas (téléphone) ----
-   Sur un écran tactile étroit, une boîte flottante centrée se manipule mal :
-   le panneau vient du bas, collé au bord, à portée du pouce.
-
-   Condition sur `pointer: coarse` et non sur la seule largeur : la fenêtre du
-   .exe fait 480 px de large et basculerait sinon en feuille du bas sur un
-   poste de bureau, à la souris. */
-@media (pointer: coarse) and (max-width: 768px) {
-  .overlay {
-    align-items: flex-end;
-  }
-
-  .panel {
-    width: 100%;
-    max-height: 88dvh;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    animation-name: sheet-in;
-  }
-
-  /* La feuille repart par où elle est venue. Règle placée ici, après celle du
-     cas général : à spécificité égale, c'est la dernière qui l'emporte. */
-  .panel.closing {
-    animation-name: sheet-out;
-  }
-
-  /* Dégage la barre d'accueil iPhone sous les boutons. */
-  .panel-actions {
-    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
-  }
-}
-
-@keyframes sheet-in {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: none;
-  }
-}
-
-@keyframes sheet-out {
-  to {
-    transform: translateY(100%);
-  }
-}

@@ -139,18 +139,6 @@ function useAnimatedHeight<T extends HTMLElement>() {
   return [ref, height] as const;
 }
 
-/**
- * Vrai sur écran tactile (téléphone, tablette). Sert à ne pas donner le focus
- * d'office à un champ : sur iPhone, cela fait surgir le clavier, qui recouvre
- * la moitié de l'écran sans que la feuille de réglages ne se redimensionne —
- * les réglages du bas passent derrière et deviennent inatteignables.
- */
-function isTouchDevice() {
-  return (
-    typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches
-  );
-}
-
 /** Vrai si l'utilisateur a demandé à réduire les animations. */
 function prefersReducedMotion() {
   return (
@@ -495,21 +483,15 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [settingsPhase]);
 
-  // Élément qui a ouvert les réglages — l'engrenage, le bouton d'un message
-  // d'erreur, ou « Lancer » quand la clé manque. On lui rend le focus à la
-  // fermeture : au clavier, on repart d'où l'on était et non du début de la
-  // page. Capturé à l'ouverture et non au montage du panneau : `autoFocus` a
-  // déjà déplacé le focus dans le panneau à ce moment-là.
-  const settingsOpenerRef = useRef<HTMLElement | null>(null);
-
   function openSettings() {
-    settingsOpenerRef.current = document.activeElement as HTMLElement | null;
     setSettingsPhase("open");
   }
 
+  // Fermeture : le panneau n'est pas retiré tout de suite, il joue d'abord sa
+  // sortie. C'est `onClosed` qui le repasse à « closed », une fois l'animation
+  // terminée.
   function closeSettings() {
     setSettingsPhase("closing");
-    settingsOpenerRef.current?.focus?.();
   }
 
   function run() {
@@ -1144,33 +1126,6 @@ function SettingsPanel({
   }, [theme]);
   useEffect(() => () => applyTheme(loadSettings().theme), []);
 
-  // Piège à focus : tant que le panneau est ouvert, Tab tourne à l'intérieur
-  // au lieu d'aller visiter l'application masquée derrière lui.
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      const stops = [
-        ...panel.querySelectorAll<HTMLElement>("input, select, textarea, button"),
-      ].filter((el) => !el.hasAttribute("disabled"));
-      if (!stops.length) return;
-      const first = stops[0];
-      const last = stops[stops.length - 1];
-      // Aux deux extrémités seulement : ailleurs, l'enchaînement natif suffit.
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    panel.addEventListener("keydown", onKeyDown);
-    return () => panel.removeEventListener("keydown", onKeyDown);
-  }, []);
-
   return (
     <div
       className={`overlay${closing ? " closing" : ""}`}
@@ -1183,115 +1138,105 @@ function SettingsPanel({
     >
       <div
         className={`panel${closing ? " closing" : ""}`}
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="settings-title">Réglages</h2>
+        <h2>Réglages</h2>
 
-        {/* Seuls les réglages défilent : le titre et les boutons Annuler /
-            Enregistrer restent visibles. Sans quoi, dans la fenêtre du .exe
-            (480 × 720), le panneau dépasse et se retrouve rogné en haut comme
-            en bas, sans aucun moyen d'atteindre ce qui déborde. */}
-        <div className="panel-body">
-          <section className="field">
-            <label className="field-label" htmlFor="api-key">
-              Clé API OpenAI
-            </label>
-            <input
-              id="api-key"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-…"
-              autoFocus={!isTouchDevice()}
-            />
-            <p className="field-hint">
-              Stockée uniquement sur cet appareil (localStorage). Les requêtes partent
-              directement vers l'API OpenAI, sans serveur intermédiaire.
-            </p>
-          </section>
+        <section className="field">
+          <label className="field-label" htmlFor="api-key">
+            Clé API OpenAI
+          </label>
+          <input
+            id="api-key"
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-…"
+            autoFocus
+          />
+          <p className="field-hint">
+            Stockée uniquement sur cet appareil (localStorage). Les requêtes partent
+            directement vers l'API OpenAI, sans serveur intermédiaire.
+          </p>
+        </section>
 
+        <section className="field">
+          <span className="field-label">Modèle par mode</span>
+          <div className="card">
+            {TASKS.map((t) => (
+              <div key={t.id} className="model-row">
+                <span className="model-mode">{t.label}</span>
+                <select
+                  value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
+                  onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
+                >
+                  {MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                      {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="field">
+          <label className="field-label" htmlFor="reply-profile">
+            E-Mail · à propos de toi
+          </label>
+          <textarea
+            id="reply-profile"
+            value={replyProfile}
+            onChange={(e) => setReplyProfile(e.target.value)}
+            placeholder="Ex. : signe « Thomas », tutoie mes collègues, réponses courtes et directes…"
+            spellCheck={false}
+          />
+          <p className="field-hint">
+            Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
+            signature et ta façon d'écrire.
+          </p>
+        </section>
+
+        <section className="field">
+          <label className="field-label" htmlFor="theme">
+            Apparence
+          </label>
+          <select
+            id="theme"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as Theme)}
+          >
+            {THEMES.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.label}
+                {t.code === "system" ? " · défaut" : ""}
+              </option>
+            ))}
+          </select>
+        </section>
+
+        {isDesktop && (
           <section className="field">
-            <span className="field-label">Modèle par mode</span>
+            <span className="field-label">Comportement</span>
             <div className="card">
-              {TASKS.map((t) => (
-                <div key={t.id} className="model-row">
-                  <span className="model-mode">{t.label}</span>
-                  <select
-                    value={models[t.id] ?? DEFAULT_MODELS[t.id] ?? FALLBACK_MODEL}
-                    onChange={(e) => setModels({ ...models, [t.id]: e.target.value })}
-                  >
-                    {MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                        {m.id === DEFAULT_MODELS[t.id] ? " · défaut" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+              <label className="option-row">
+                <span className="option-text">
+                  Coller automatiquement le presse-papier à l'ouverture
+                </span>
+                <span className="switch">
+                  <input
+                    type="checkbox"
+                    checked={autoPaste}
+                    onChange={(e) => setAutoPaste(e.target.checked)}
+                  />
+                  <span className="slider" />
+                </span>
+              </label>
             </div>
           </section>
-
-          <section className="field">
-            <label className="field-label" htmlFor="reply-profile">
-              E-Mail · à propos de toi
-            </label>
-            <textarea
-              id="reply-profile"
-              value={replyProfile}
-              onChange={(e) => setReplyProfile(e.target.value)}
-              placeholder="Ex. : signe « Thomas », tutoie mes collègues, réponses courtes et directes…"
-              spellCheck={false}
-            />
-            <p className="field-hint">
-              Optionnel. Transmis au modèle uniquement dans l'onglet E-Mail, pour la
-              signature et ta façon d'écrire.
-            </p>
-          </section>
-
-          <section className="field">
-            <label className="field-label" htmlFor="theme">
-              Apparence
-            </label>
-            <select
-              id="theme"
-              value={theme}
-              onChange={(e) => setTheme(e.target.value as Theme)}
-            >
-              {THEMES.map((t) => (
-                <option key={t.code} value={t.code}>
-                  {t.label}
-                  {t.code === "system" ? " · défaut" : ""}
-                </option>
-              ))}
-            </select>
-          </section>
-
-          {isDesktop && (
-            <section className="field">
-              <span className="field-label">Comportement</span>
-              <div className="card">
-                <label className="option-row">
-                  <span className="option-text">
-                    Coller automatiquement le presse-papier à l'ouverture
-                  </span>
-                  <span className="switch">
-                    <input
-                      type="checkbox"
-                      checked={autoPaste}
-                      onChange={(e) => setAutoPaste(e.target.checked)}
-                    />
-                    <span className="slider" />
-                  </span>
-                </label>
-              </div>
-            </section>
-          )}
-        </div>
+        )}
 
         <div className="panel-actions">
           <button className="ghost-btn" onClick={onClose}>
