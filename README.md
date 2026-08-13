@@ -68,6 +68,7 @@ src/                  Frontend React partagé (web + desktop)
   lib/tasks.ts        Onglets et prompts prédéfinis
   lib/openai.ts       Client API OpenAI (streaming)
   lib/desktop.ts      Intégration Tauri (no-op dans le navigateur)
+public/fonts/         Police Geist embarquée (SIL OFL 1.1, licence incluse)
 src-tauri/            Enveloppe desktop (Rust / Tauri 2)
 .github/workflows/    Build Windows (release sur tag v*)
 ```

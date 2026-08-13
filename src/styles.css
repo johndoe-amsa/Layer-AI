@@ -1,3 +1,39 @@
+/* ---- Police ----
+   Geist (SIL OFL 1.1, licence dans public/fonts/LICENSE-Geist.txt), embarquée
+   dans l'app plutôt que chargée depuis un CDN : la version desktop doit
+   s'afficher hors ligne, et la version web évite un aller-retour réseau vers
+   un tiers. Fichier variable unique (une seule requête couvre 100→900), d'où
+   `font-weight: 100 900` : les graisses 500/600 utilisées ici sont de vraies
+   instances dessinées, jamais du gras synthétique.
+
+   Deux sous-ensembles, découpés par `unicode-range` : le navigateur ne
+   télécharge `latin-ext` que si le texte affiché en a besoin. `latin` couvre
+   le français en entier (œ, accents, €, ponctuation typographique) ; le texte
+   collé par l'utilisateur déborde parfois dessus (noms polonais, tchèques…),
+   d'où le second fichier. `swap` affiche immédiatement la police système puis
+   permute — jamais de texte invisible, même si le fichier tarde. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   /* ---- Couleurs ---- */
   color-scheme: light;
@@ -18,6 +54,13 @@
   /* Pilule active du segmented control : toujours plus claire que sa piste. */
   --thumb: #ffffff;
   --overlay: rgba(0, 0, 0, 0.3);
+  /* Sélection de texte : teinte d'accent assez transparente pour que le texte
+     sélectionné reste lisible sans forcer sa couleur. */
+  --selection: oklch(0.5761 0.2508 258.23 / 0.22);
+  /* Rail des barres de défilement (voir plus bas) : visible sans capter
+     l'attention, il s'assombrit au survol. */
+  --scrollbar: rgba(0, 0, 0, 0.22);
+  --scrollbar-hover: rgba(0, 0, 0, 0.4);
 
   /* ---- Échelle typographique ----
      5 niveaux, du plus discret (légendes) au titre. On ne pioche que
@@ -53,7 +96,16 @@
   --radius-lg: 10px;
   --radius-xl: 12px;
 
-  font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  /* ---- Élévation ----
+     Deux niveaux, et rien d'autre : les ombres ponctuelles finissent toujours
+     par diverger. 1 = surface qui glisse au-dessus de sa piste (pilule active,
+     bouton d'interrupteur) ; 2 = élément flottant détaché de la page (panneau
+     de réglages). Le focus utilise `box-shadow` lui aussi, mais comme anneau
+     net (`0 0 0 1px`), pas comme ombre portée : ce n'est pas une élévation. */
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --elevation-2: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  font-family: "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 
 /* ---- Thème sombre ----
@@ -75,6 +127,15 @@
   --surface: #171717;
   --thumb: #3d3d3d;
   --overlay: rgba(0, 0, 0, 0.55);
+  /* Plus opaque qu'en clair : la même teinte posée sur un fond sombre rend
+     beaucoup moins. */
+  --selection: oklch(0.5761 0.2508 258.23 / 0.4);
+  --scrollbar: rgba(255, 255, 255, 0.2);
+  --scrollbar-hover: rgba(255, 255, 255, 0.38);
+  /* Ombres nettement plus denses : sur fond sombre, une ombre légère est
+     purement et simplement invisible. */
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --elevation-2: 0 8px 30px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -99,6 +160,94 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
   touch-action: manipulation;
+}
+
+/* ---- Focus clavier ----
+   `:focus-visible` (et non `:focus`) : l'anneau n'apparaît qu'au clavier, pas
+   au clic à la souris. Sans lui, naviguer l'app au Tab se fait à l'aveugle.
+   L'outline épouse automatiquement le `border-radius` de l'élément ; inutile —
+   et nuisible — d'en imposer un ici. */
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* Champs de saisie exceptés : ils portent déjà leur propre marque de focus
+   (bordure renforcée + halo), affichée aussi au clic. Un outline par-dessus
+   ferait un double cadre. Les zones de texte des messages sont nues : c'est la
+   carte `.msg` qui prend l'anneau, via `:focus-within`. */
+textarea:focus-visible,
+.panel input:focus-visible,
+.panel select:focus-visible {
+  outline: none;
+}
+
+/* ---- Barres de défilement ----
+   Les barres natives de Windows (larges, grises, avec flèches) sautent aux
+   yeux dans une fenêtre de 640 px et datent l'application. On les redessine
+   fines et assorties au thème.
+
+   Deux syntaxes pour une seule apparence : la standard, suivie par les
+   navigateurs récents, et l'ancienne syntaxe WebKit pour les webviews plus
+   anciennes. Là où les deux sont comprises, la standard l'emporte. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* La bordure transparente + `background-clip` dessinent une pastille de 4 px
+   au centre d'une gouttière de 10 px : la cible de la souris reste large, le
+   trait visible reste discret. */
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-hover);
+}
+
+/* Sélection de texte aux couleurs de l'app plutôt qu'au bleu du système. On ne
+   force pas la couleur du texte : elle reste celle du contexte (diff compris). */
+::selection {
+  background: var(--selection);
+}
+
+/* ---- Bascule de thème ----
+   Sans transition, le passage clair/sombre claque. Ces transitions ne peuvent
+   pas rester en permanence : elles ralentiraient aussi les changements de fond
+   au survol. L'attribut `data-theme-anim` est donc posé sur <html> le temps de
+   la bascule, puis retiré (voir applyTheme, src/lib/settings.ts). */
+:root[data-theme-anim],
+:root[data-theme-anim] *,
+:root[data-theme-anim] *::before,
+:root[data-theme-anim] *::after {
+  transition:
+    background-color 0.2s linear,
+    border-color 0.2s linear,
+    color 0.2s linear,
+    box-shadow 0.2s linear !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme-anim],
+  :root[data-theme-anim] *,
+  :root[data-theme-anim] *::before,
+  :root[data-theme-anim] *::after {
+    transition: none !important;
+  }
 }
 
 .app {
@@ -327,7 +476,7 @@ textarea:focus {
   left: 0;
   background: var(--thumb);
   border-radius: var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--elevation-1);
   pointer-events: none;
   transition:
     transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -377,6 +526,9 @@ textarea:focus {
   background: var(--hover);
   border-radius: 999px;
   font-size: var(--text-xs);
+  /* Chiffres à chasse fixe : la pastille ne change plus de largeur en passant
+     de « 9 messages » à « 10 messages ». */
+  font-variant-numeric: tabular-nums;
 }
 
 .section-hint {
@@ -433,6 +585,9 @@ textarea:focus {
   font-weight: var(--weight-semibold);
   color: var(--muted);
   user-select: none;
+  /* Même raison que la pastille de comptage : le chiffre reste centré à
+     l'identique quel que soit le nombre de messages. */
+  font-variant-numeric: tabular-nums;
 }
 
 .msg-tools {
@@ -701,7 +856,7 @@ textarea:focus {
   height: 18px;
   background: #fff;
   border-radius: 50%;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--elevation-1);
   transition: transform 0.2s;
 }
 
@@ -860,7 +1015,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--elevation-2);
 }
 
 .panel h2 {
@@ -897,10 +1052,14 @@ textarea:focus {
   font: inherit;
   color: var(--fg);
   outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+/* Même anneau que la zone de texte principale : au clavier comme au clic, le
+   champ actif se repère du premier coup d'œil. */
 .panel input:focus {
   border-color: var(--fg);
+  box-shadow: 0 0 0 1px var(--fg);
 }
 
 /* Menus déroulants du panneau (thème, modèles) : mêmes cadres que les
@@ -915,10 +1074,12 @@ textarea:focus {
   background: var(--bg);
   outline: none;
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .panel select:focus {
   border-color: var(--fg);
+  box-shadow: 0 0 0 1px var(--fg);
 }
 
 /* Zone de texte des réglages (profil Répondre) : plus compacte que celles
