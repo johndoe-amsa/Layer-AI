@@ -394,7 +394,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  /* Cycle de vie du panneau de réglages. Il reste monté pendant « closing »,
+     le temps que l'animation de sortie se joue : sans cet état intermédiaire,
+     React le retirerait du DOM à l'instant du clic et il disparaîtrait d'un
+     coup. C'est l'événement de fin d'animation qui repasse à « closed ». */
+  const [settingsPhase, setSettingsPhase] = useState<"closed" | "open" | "closing">(
+    "closed",
+  );
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -468,13 +474,14 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (showSettings) closeSettings();
+        // Pendant la fermeture, il n'y a plus rien à fermer.
+        if (settingsPhase === "open") closeSettings();
         else hideWindow();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSettings]);
+  }, [settingsPhase]);
 
   // Élément qui a ouvert les réglages — l'engrenage, le bouton d'un message
   // d'erreur, ou « Lancer » quand la clé manque. On lui rend le focus à la
@@ -485,11 +492,11 @@ export default function App() {
 
   function openSettings() {
     settingsOpenerRef.current = document.activeElement as HTMLElement | null;
-    setShowSettings(true);
+    setSettingsPhase("open");
   }
 
   function closeSettings() {
-    setShowSettings(false);
+    setSettingsPhase("closing");
     settingsOpenerRef.current?.focus?.();
   }
 
@@ -1001,7 +1008,7 @@ export default function App() {
         )}
       </footer>
 
-      {showSettings && (
+      {settingsPhase !== "closed" && (
         <SettingsPanel
           settings={settings}
           onSave={(s) => {
@@ -1010,6 +1017,8 @@ export default function App() {
             closeSettings();
           }}
           onClose={closeSettings}
+          closing={settingsPhase === "closing"}
+          onClosed={() => setSettingsPhase("closed")}
         />
       )}
     </div>
@@ -1099,10 +1108,16 @@ function SettingsPanel({
   settings,
   onSave,
   onClose,
+  closing,
+  onClosed,
 }: {
   settings: Settings;
   onSave: (s: Settings) => void;
   onClose: () => void;
+  /** Fermeture demandée : le panneau joue sa sortie avant d'être retiré. */
+  closing: boolean;
+  /** Sortie terminée — l'appelant peut retirer le panneau. */
+  onClosed: () => void;
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [models, setModels] = useState<Record<string, string>>(settings.models);
@@ -1145,9 +1160,17 @@ function SettingsPanel({
   }, []);
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div
+      className={`overlay${closing ? " closing" : ""}`}
+      onClick={onClose}
+      // Les animations du panneau remontent aussi jusqu'ici : on ne retient
+      // que celle de l'arrière-plan, sinon le démontage se jouerait deux fois.
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) onClosed();
+      }}
+    >
       <div
-        className="panel"
+        className={`panel${closing ? " closing" : ""}`}
         ref={panelRef}
         role="dialog"
         aria-modal="true"

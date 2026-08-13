@@ -1063,10 +1063,12 @@ textarea:focus {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  /* Aucun padding ni gap ici : le panneau est fait de trois bandes — titre,
+     réglages, boutons — qui portent chacune le leur. C'est ce qui permet aux
+     filets de séparation d'aller d'un bord à l'autre. */
+  overflow: hidden;
   box-shadow: var(--elevation-2);
   animation: panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1093,31 +1095,22 @@ textarea:focus {
 }
 
 /* Seuls les réglages défilent : le titre et les boutons Annuler / Enregistrer
-   restent en place, toujours atteignables. */
+   restent en place, toujours atteignables. Le filet qui borde ces deux bandes
+   est ce qui rend le défilement lisible : une ligne de texte coupée net sous
+   un trait se lit comme « ça continue au-dessus », alors que la même coupure
+   dans le vide passe pour un défaut d'affichage. */
 .panel-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   overflow-y: auto;
-  /* Débord compensé : l'anneau de focus des champs déborde d'un pixel, que la
-     zone de défilement rognerait sans cette réserve. */
-  margin: 0 calc(-1 * var(--space-2));
-  padding: var(--space-1) var(--space-2);
-  /* Ombre de défilement, sans une ligne de JavaScript : les deux dégradés
-     `local` (couleur du fond) suivent le contenu et viennent recouvrir les
-     ombres fixes lorsqu'on arrive en butée. Une ombre n'apparaît donc d'un
-     côté que s'il reste des réglages à atteindre — sans quoi rien ne
-     signalerait, dans une fenêtre courte, que le panneau continue plus bas. */
-  background:
-    linear-gradient(var(--bg), transparent) top / 100% 16px no-repeat local,
-    linear-gradient(transparent, var(--bg)) bottom / 100% 16px no-repeat local,
-    radial-gradient(farthest-side at 50% 0, var(--scrollbar), transparent) top / 100% 7px
-      no-repeat,
-    radial-gradient(farthest-side at 50% 100%, var(--scrollbar), transparent) bottom / 100% 7px
-      no-repeat;
+  padding: var(--space-5);
 }
 
 .panel h2 {
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
@@ -1252,16 +1245,51 @@ textarea:focus {
 }
 
 .panel-actions {
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  margin-top: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+/* Sortie plus rapide que l'entrée (150 ms contre 300) et sans le léger rebond
+   de l'arrivée : on ne fait pas patienter quelqu'un qui a déjà décidé de
+   fermer. Le panneau reste monté le temps de l'animation, puis se retire sur
+   l'événement de fin (voir `onClosed`, src/App.tsx). */
+.overlay.closing {
+  animation-name: overlay-out;
+  animation-duration: 0.15s;
+  /* Plus rien à cliquer pendant que ça s'efface. */
+  pointer-events: none;
+}
+
+.panel.closing {
+  animation-name: panel-out;
+  animation-duration: 0.15s;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@keyframes overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .overlay,
   .panel {
-    animation: none;
+    /* Durée quasi nulle plutôt que `animation: none` : l'événement de fin
+       d'animation doit continuer à se produire, puisque c'est lui qui retire
+       le panneau une fois fermé. */
+    animation-duration: 0.01ms;
   }
 }
 
@@ -1314,9 +1342,18 @@ textarea:focus {
     width: 100%;
     max-height: 88dvh;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    /* Dégage la barre d'accueil iPhone sous les boutons. */
-    padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
     animation-name: sheet-in;
+  }
+
+  /* La feuille repart par où elle est venue. Règle placée ici, après celle du
+     cas général : à spécificité égale, c'est la dernière qui l'emporte. */
+  .panel.closing {
+    animation-name: sheet-out;
+  }
+
+  /* Dégage la barre d'accueil iPhone sous les boutons. */
+  .panel-actions {
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
   }
 }
 
@@ -1326,5 +1363,11 @@ textarea:focus {
   }
   to {
     transform: none;
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
   }
 }
