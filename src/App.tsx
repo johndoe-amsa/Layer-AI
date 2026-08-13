@@ -139,6 +139,18 @@ function useAnimatedHeight<T extends HTMLElement>() {
   return [ref, height] as const;
 }
 
+/**
+ * Vrai sur écran tactile (téléphone, tablette). Sert à ne pas donner le focus
+ * d'office à un champ : sur iPhone, cela fait surgir le clavier, qui recouvre
+ * la moitié de l'écran sans que la feuille de réglages ne se redimensionne —
+ * les réglages du bas passent derrière et deviennent inatteignables.
+ */
+function isTouchDevice() {
+  return (
+    typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches
+  );
+}
+
 /** Vrai si l'utilisateur a demandé à réduire les animations. */
 function prefersReducedMotion() {
   return (
@@ -1194,7 +1206,7 @@ function SettingsPanel({
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="sk-…"
-              autoFocus
+              autoFocus={!isTouchDevice()}
             />
             <p className="field-hint">
               Stockée uniquement sur cet appareil (localStorage). Les requêtes partent

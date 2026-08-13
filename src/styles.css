@@ -1046,6 +1046,13 @@ textarea:focus {
 .overlay {
   position: fixed;
   inset: 0;
+  /* iOS : un élément `fixed` se positionne dans le viewport de mise en page,
+     qui reste à la hauteur plein écran même quand les barres de Safari sont
+     affichées. `bottom: 0` tombe donc *sous* la barre du bas, et le panneau —
+     collé en bas sur téléphone — se retrouve en partie hors écran, sa barre de
+     boutons hors d'atteinte. `100dvh` le ramène à la hauteur réellement
+     visible. Sans effet ailleurs, où dvh vaut vh. */
+  height: 100dvh;
   background: var(--overlay);
   display: flex;
   align-items: center;
@@ -1105,6 +1112,17 @@ textarea:focus {
   gap: var(--space-4);
   overflow-y: auto;
   padding: var(--space-5);
+  /* Un élément de flexbox refuse par défaut de descendre sous la hauteur de
+     son contenu. La règle qui ramène ce minimum à zéro pour un conteneur
+     défilant n'est pas appliquée de la même façon partout : sans ce `0`
+     explicite, WebKit laisse la bande grandir jusqu'à son contenu, le panneau
+     déborde de sa hauteur maximale, et il n'y a tout simplement plus rien à
+     faire défiler. C'est la cause du « scroll cassé » sur iPhone. */
+  min-height: 0;
+  /* Arrivé en butée, le geste ne se propage pas à la page derrière : sur
+     mobile, c'est elle qui bougeait à la place du panneau. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .panel h2 {
