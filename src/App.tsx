@@ -51,6 +51,19 @@ const TASK_ICONS: Record<string, () => JSX.Element> = {
 /** Bloc de message de l'onglet « Répondre », identifié pour le rendu React. */
 type ThreadMsg = ReplyMessage & { id: number };
 
+/** Instantané pris avant un effacement, pour pouvoir le défaire. */
+interface ClearedContent {
+  input: string;
+  thread: ThreadMsg[];
+  output: string;
+  sourceText: string;
+  showDiff: boolean;
+  historyOpen: boolean;
+}
+
+/** Délai (ms) pendant lequel « Annuler » reste proposé après un effacement. */
+const UNDO_MS = 8000;
+
 /**
  * Collage dans une zone de texte contrôlée : nettoie le contenu avant
  * insertion et laisse le collage natif si rien n'est à nettoyer.
@@ -402,6 +415,12 @@ export default function App() {
     "closed",
   );
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  /* Ce qu'« Effacer » vient de supprimer, conservé le temps de proposer
+     « Annuler ». Le bouton balayait saisie, conversation et réponse d'un seul
+     clic, sans retour possible : un mail entier collé pouvait disparaître sur
+     une fausse manœuvre. */
+  const [cleared, setCleared] = useState<ClearedContent | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const outputZoneRef = useRef<HTMLDivElement>(null);
@@ -477,11 +496,71 @@ export default function App() {
         // Pendant la fermeture, il n'y a plus rien à fermer.
         if (settingsPhase === "open") closeSettings();
         else hideWindow();
+        return;
+      }
+      // Alt + 1…4 : passe d'un onglet à l'autre. Alt et non Ctrl : dans un
+      // navigateur, Ctrl (ou Cmd) + chiffre est réservé au changement d'onglet
+      // du navigateur et la page ne peut pas l'intercepter — le raccourci ne
+      // marcherait que dans le .exe. On lit `code` et non `key` : sous macOS,
+      // Alt + 1 produit « ¡ », alors que le code de touche reste « Digit1 ».
+      if (e.altKey && !e.ctrlKey && !e.metaKey && settingsPhase === "closed") {
+        const digit = /^Digit([1-9])$/.exec(e.code);
+        const next = digit && TASKS[Number(digit[1]) - 1];
+        if (next) {
+          e.preventDefault();
+          selectTask(next);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [settingsPhase]);
+
+  /* Changement d'onglet, par clic ou au raccourci. Lit l'onglet courant dans
+     `taskRef` : le gestionnaire clavier est enregistré une fois pour toutes et
+     ne verrait sinon que la valeur du premier rendu. */
+  function selectTask(next: Task) {
+    if (next.id === taskRef.current) return;
+    setTask(next);
+    setOutput("");
+    setError(null);
+    setShowDiff(false);
+    dismissUndo();
+  }
+
+  /* Efface tout — saisie, conversation et réponse — après avoir mis le contenu
+     de côté : « Annuler » le remet en place pendant quelques secondes. */
+  function clearAll() {
+    setCleared({ input, thread, output, sourceText, showDiff, historyOpen });
+    clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setCleared(null), UNDO_MS);
+    setInput("");
+    setOutput("");
+    setError(null);
+    setShowDiff(false);
+    if (task.id === "reply") resetThread();
+  }
+
+  function undoClear() {
+    if (!cleared) return;
+    setInput(cleared.input);
+    setThread(cleared.thread);
+    setOutput(cleared.output);
+    setSourceText(cleared.sourceText);
+    setShowDiff(cleared.showDiff);
+    setHistoryOpen(cleared.historyOpen);
+    dismissUndo();
+    inputRef.current?.focus();
+  }
+
+  /** Retire la proposition d'annulation (délai écoulé, ou autre chose entamée). */
+  function dismissUndo() {
+    clearTimeout(undoTimerRef.current);
+    setCleared(null);
+  }
+
+  // Le compte à rebours ne doit pas survivre au démontage.
+  useEffect(() => () => clearTimeout(undoTimerRef.current), []);
 
   function openSettings() {
     setSettingsPhase("open");
@@ -510,6 +589,8 @@ export default function App() {
     // Texte nettoyé des artefacts de copier-coller (Outlook, Word…) avant
     // envoi et comparaison, pour éviter les espaces parasites.
     const text = cleanInput(rawText);
+    // On repart pour un tour : l'effacement précédent n'est plus annulable.
+    dismissUndo();
     setBusy(true);
     setError(null);
     setOutput("");
@@ -726,7 +807,8 @@ export default function App() {
               className="ghost-btn"
               onClick={reuseIntoRephrase}
               disabled={!output || busy}
-              title="Reprendre cette réponse dans l'onglet Reformuler"
+              data-tip="Retravailler dans Reformuler"
+              data-tip-align="right"
             >
               <RefreshIcon />
               Reprendre et reformuler
@@ -737,7 +819,8 @@ export default function App() {
                 className="ghost-btn"
                 onClick={reuseOutput}
                 disabled={!output || busy}
-                title="Reprendre ce texte comme nouvelle entrée"
+                data-tip="Utiliser comme nouvelle entrée"
+                data-tip-align="right"
               >
                 <ReuseIcon />
                 Reprendre
@@ -749,7 +832,8 @@ export default function App() {
                   className="ghost-btn"
                   onClick={iterateOutput}
                   disabled={!output || busy}
-                  title="Reprendre cette sortie et relancer la reformulation"
+                  data-tip="Reformuler encore une fois"
+                  data-tip-align="right"
                 >
                   <RefreshIcon />
                   Réitérer
@@ -796,25 +880,28 @@ export default function App() {
           <span className="brand-dot" />
           Layer AI
         </div>
-        <button className="icon-btn" title="Réglages" onClick={openSettings}>
+        <button
+          className="icon-btn"
+          aria-label="Réglages"
+          data-tip="Réglages"
+          data-tip-align="right"
+          onClick={openSettings}
+        >
           <GearIcon />
         </button>
       </header>
 
       <nav className="tabs" ref={tabsRef}>
-        {TASKS.map((t) => {
+        {TASKS.map((t, i) => {
           const Icon = TASK_ICONS[t.id];
           return (
             <button
               key={t.id}
               className={`tab ${t.id === task.id ? "active" : ""}`}
-              onClick={() => {
-                if (t.id === task.id) return;
-                setTask(t);
-                setOutput("");
-                setError(null);
-                setShowDiff(false);
-              }}
+              // Le raccourci se découvre là où l'on s'en servirait : au survol
+              // de l'onglet, plutôt que dans une liste que personne n'ouvre.
+              data-tip={`${t.label} · Alt ${i + 1}`}
+              onClick={() => selectTask(t)}
             >
               {Icon && <Icon />}
               {t.label}
@@ -867,16 +954,7 @@ export default function App() {
           />
           <div className="input-actions">
             {input || (task.id === "reply" && thread.some((m) => m.text.trim())) ? (
-              <button
-                className="ghost-btn danger"
-                onClick={() => {
-                  setInput("");
-                  setOutput("");
-                  setError(null);
-                  setShowDiff(false);
-                  if (task.id === "reply") resetThread();
-                }}
-              >
+              <button className="ghost-btn danger" onClick={clearAll}>
                 <TrashIcon />
                 Effacer
               </button>
@@ -937,7 +1015,8 @@ export default function App() {
                         <div className="msg-id">
                           <span
                             className="msg-num"
-                            title={`Message ${thread.length - i} de la conversation (1 = plus ancien)`}
+                            data-tip={`Message n° ${thread.length - i} de l'échange`}
+                            data-tip-align="left"
                           >
                             {thread.length - i}
                           </span>
@@ -953,14 +1032,18 @@ export default function App() {
                         <div className="msg-tools">
                           <button
                             className="icon-btn"
-                            title="Coller le presse-papier dans ce message"
+                            aria-label="Coller le presse-papier dans ce message"
+                            data-tip="Coller ici"
+                            data-tip-align="right"
                             onClick={() => pasteIntoMsg(m.id)}
                           >
                             <ClipboardIcon />
                           </button>
                           <button
                             className="icon-btn"
-                            title="Supprimer ce message"
+                            aria-label="Supprimer ce message"
+                            data-tip="Supprimer"
+                            data-tip-align="right"
                             onClick={() => removeMsg(m.id)}
                             disabled={thread.length === 1 && !m.text}
                           >
@@ -993,14 +1076,29 @@ export default function App() {
       </main>
 
       <footer className="footer">
+        {/* La version tient dans le pied de page plutôt que dans une section
+            « À propos » des réglages : le panneau est déjà plus haut que la
+            fenêtre du .exe, inutile de l'allonger encore. */}
+        <span className="footer-version">Layer AI {__APP_VERSION__}</span>
+        {" · "}
         {isDesktop ? (
           <span>
             <kbd>Ctrl Shift Espace</kbd> afficher/masquer · <kbd>Échap</kbd> masquer
           </span>
         ) : (
-          <span>Version web · les requêtes partent directement de ton navigateur</span>
+          <span>Les requêtes partent directement de ton navigateur</span>
         )}
       </footer>
+
+      {cleared && (
+        <div className="toast" role="status">
+          <span>Contenu effacé</span>
+          <button className="ghost-btn" onClick={undoClear}>
+            <ReuseIcon />
+            Annuler
+          </button>
+        </div>
+      )}
 
       {settingsPhase !== "closed" && (
         <SettingsPanel
