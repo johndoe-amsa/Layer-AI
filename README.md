@@ -1,4 +1,4 @@
-# Layer AI :)
+# Lapsus :)
 
 Mini assistant LLM : corriger, traduire ou reformuler un texte, ou rédiger la réponse à un mail (dans ton style, à partir de la conversation collée), en un raccourci clavier.
 

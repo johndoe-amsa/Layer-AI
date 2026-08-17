@@ -1,6 +1,6 @@
 {
-  "name": "Layer AI",
-  "short_name": "Layer AI",
+  "name": "Lapsus",
+  "short_name": "Lapsus",
   "description": "Mini assistant LLM : corriger, traduire ou reformuler un texte.",
   "lang": "fr",
   "start_url": "/",

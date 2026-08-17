@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Layer AI",
+  "productName": "Lapsus",
   "version": "0.1.0",
-  "identifier": "com.layer-ai.app",
+  "identifier": "com.lapsus.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Layer AI",
+        "title": "Lapsus",
         "width": 480,
         "height": 720,
         "minWidth": 360,

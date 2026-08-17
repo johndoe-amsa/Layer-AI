@@ -8,7 +8,12 @@
       (function () {
         var theme = "system";
         try {
-          theme = JSON.parse(localStorage.getItem("layer-ai-settings")).theme || "system";
+          // `layer-ai-settings` : ancien nom de l'app, encore présent tant que
+          // le bundle n'a pas migré les réglages (voir src/lib/settings.ts).
+          var raw =
+            localStorage.getItem("lapsus-settings") ||
+            localStorage.getItem("layer-ai-settings");
+          theme = JSON.parse(raw).theme || "system";
         } catch (e) {}
         var dark =
           theme === "dark" ||
@@ -20,7 +25,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>Layer AI</title>
+    <title>Lapsus</title>
 
     <!-- Police embarquée (voir @font-face dans src/styles.css) : la précharger
          lance son téléchargement sans attendre l'analyse de la feuille de
@@ -46,7 +51,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Layer AI" />
+    <meta name="apple-mobile-web-app-title" content="Lapsus" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" href="/icons/icon-256.png" />
   </head>

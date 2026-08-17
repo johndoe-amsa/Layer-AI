@@ -68,7 +68,30 @@ export function applyTheme(theme: Theme) {
   syncTheme();
 }
 
-const KEY = "layer-ai-settings";
+const KEY = "lapsus-settings";
+
+/**
+ * Clés utilisées avant le renommage « Layer AI » → « Lapsus ». Relues une
+ * fois par `migrate` pour ne pas faire perdre sa clé API (et ses préférences)
+ * à quelqu'un qui utilisait déjà l'app. Supprimable dans quelques versions.
+ */
+const LEGACY_KEYS: Record<string, string> = {
+  "lapsus-settings": "layer-ai-settings",
+  "lapsus-prefs": "layer-ai-prefs",
+};
+
+/** Lit `key`, en reprenant au besoin la valeur stockée sous l'ancien nom. */
+function readMigrated(key: string): string | null {
+  const raw = localStorage.getItem(key);
+  if (raw !== null) return raw;
+
+  const legacy = localStorage.getItem(LEGACY_KEYS[key]);
+  if (legacy !== null) {
+    localStorage.setItem(key, legacy);
+    localStorage.removeItem(LEGACY_KEYS[key]);
+  }
+  return legacy;
+}
 
 /** Modèles OpenAI proposés dans les listes déroulantes. */
 export interface ModelOption {
@@ -96,7 +119,7 @@ export const FALLBACK_MODEL = "gpt-4.1-mini";
 
 export function loadSettings(): Settings {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = readMigrated(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
@@ -134,13 +157,13 @@ export interface Prefs {
   tone: string;
 }
 
-const PREFS_KEY = "layer-ai-prefs";
+const PREFS_KEY = "lapsus-prefs";
 
 const DEFAULT_PREFS: Prefs = { task: "fix", targetLang: "fr", tone: "standard" };
 
 export function loadPrefs(): Prefs {
   try {
-    const raw = localStorage.getItem(PREFS_KEY);
+    const raw = readMigrated(PREFS_KEY);
     if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
   } catch {
     // stockage corrompu : on repart des valeurs par défaut
