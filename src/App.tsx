@@ -807,8 +807,6 @@ export default function App() {
               className="ghost-btn"
               onClick={reuseIntoRephrase}
               disabled={!output || busy}
-              data-tip="Retravailler dans Reformuler"
-              data-tip-align="right"
             >
               <RefreshIcon />
               Reprendre et reformuler
@@ -819,8 +817,6 @@ export default function App() {
                 className="ghost-btn"
                 onClick={reuseOutput}
                 disabled={!output || busy}
-                data-tip="Utiliser comme nouvelle entrée"
-                data-tip-align="right"
               >
                 <ReuseIcon />
                 Reprendre
@@ -832,8 +828,6 @@ export default function App() {
                   className="ghost-btn"
                   onClick={iterateOutput}
                   disabled={!output || busy}
-                  data-tip="Reformuler encore une fois"
-                  data-tip-align="right"
                 >
                   <RefreshIcon />
                   Réitérer
@@ -880,27 +874,18 @@ export default function App() {
           <span className="brand-dot" />
           Layer AI
         </div>
-        <button
-          className="icon-btn"
-          aria-label="Réglages"
-          data-tip="Réglages"
-          data-tip-align="right"
-          onClick={openSettings}
-        >
+        <button className="icon-btn" aria-label="Réglages" onClick={openSettings}>
           <GearIcon />
         </button>
       </header>
 
       <nav className="tabs" ref={tabsRef}>
-        {TASKS.map((t, i) => {
+        {TASKS.map((t) => {
           const Icon = TASK_ICONS[t.id];
           return (
             <button
               key={t.id}
               className={`tab ${t.id === task.id ? "active" : ""}`}
-              // Le raccourci se découvre là où l'on s'en servirait : au survol
-              // de l'onglet, plutôt que dans une liste que personne n'ouvre.
-              data-tip={`${t.label} · Alt ${i + 1}`}
               onClick={() => selectTask(t)}
             >
               {Icon && <Icon />}
@@ -1015,8 +1000,6 @@ export default function App() {
                         <div className="msg-id">
                           <span
                             className="msg-num"
-                            data-tip={`Message n° ${thread.length - i} de l'échange`}
-                            data-tip-align="left"
                           >
                             {thread.length - i}
                           </span>
@@ -1033,8 +1016,6 @@ export default function App() {
                           <button
                             className="icon-btn"
                             aria-label="Coller le presse-papier dans ce message"
-                            data-tip="Coller ici"
-                            data-tip-align="right"
                             onClick={() => pasteIntoMsg(m.id)}
                           >
                             <ClipboardIcon />
@@ -1042,8 +1023,6 @@ export default function App() {
                           <button
                             className="icon-btn"
                             aria-label="Supprimer ce message"
-                            data-tip="Supprimer"
-                            data-tip-align="right"
                             onClick={() => removeMsg(m.id)}
                             disabled={thread.length === 1 && !m.text}
                           >
