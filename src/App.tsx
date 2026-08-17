@@ -24,6 +24,7 @@ import {
   FALLBACK_MODEL,
 } from "./lib/settings";
 import { streamCompletion } from "./lib/openai";
+import { describeError } from "./lib/errors";
 import { diffWords, DiffSegment } from "./lib/diff";
 import { cleanInput, cleanOutput, normalizeDashes } from "./lib/text";
 import { initDesktop, hideWindow, readClipboard, isDesktop } from "./lib/desktop";
@@ -49,6 +50,19 @@ const TASK_ICONS: Record<string, () => JSX.Element> = {
 
 /** Bloc de message de l'onglet « Répondre », identifié pour le rendu React. */
 type ThreadMsg = ReplyMessage & { id: number };
+
+/** Instantané pris avant un effacement, pour pouvoir le défaire. */
+interface ClearedContent {
+  input: string;
+  thread: ThreadMsg[];
+  output: string;
+  sourceText: string;
+  showDiff: boolean;
+  historyOpen: boolean;
+}
+
+/** Délai (ms) pendant lequel « Annuler » reste proposé après un effacement. */
+const UNDO_MS = 8000;
 
 /**
  * Collage dans une zone de texte contrôlée : nettoie le contenu avant
@@ -391,10 +405,22 @@ export default function App() {
   const [sourceText, setSourceText] = useState("");
   const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  /* Cycle de vie du panneau de réglages. Il reste monté pendant « closing »,
+     le temps que l'animation de sortie se joue : sans cet état intermédiaire,
+     React le retirerait du DOM à l'instant du clic et il disparaîtrait d'un
+     coup. C'est l'événement de fin d'animation qui repasse à « closed ». */
+  const [settingsPhase, setSettingsPhase] = useState<"closed" | "open" | "closing">(
+    "closed",
+  );
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  /* Ce qu'« Effacer » vient de supprimer, conservé le temps de proposer
+     « Annuler ». Le bouton balayait saisie, conversation et réponse d'un seul
+     clic, sans retour possible : un mail entier collé pouvait disparaître sur
+     une fausse manœuvre. */
+  const [cleared, setCleared] = useState<ClearedContent | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const outputZoneRef = useRef<HTMLDivElement>(null);
@@ -445,7 +471,7 @@ export default function App() {
         } else if (clip && clip !== inputRef.current?.value) {
           setInput(clip);
           setOutput("");
-          setError("");
+          setError(null);
         }
       }
       inputRef.current?.focus();
@@ -467,13 +493,85 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (showSettings) setShowSettings(false);
+        // Pendant la fermeture, il n'y a plus rien à fermer.
+        if (settingsPhase === "open") closeSettings();
         else hideWindow();
+        return;
+      }
+      // Alt + 1…4 : passe d'un onglet à l'autre. Alt et non Ctrl : dans un
+      // navigateur, Ctrl (ou Cmd) + chiffre est réservé au changement d'onglet
+      // du navigateur et la page ne peut pas l'intercepter — le raccourci ne
+      // marcherait que dans le .exe. On lit `code` et non `key` : sous macOS,
+      // Alt + 1 produit « ¡ », alors que le code de touche reste « Digit1 ».
+      if (e.altKey && !e.ctrlKey && !e.metaKey && settingsPhase === "closed") {
+        const digit = /^Digit([1-9])$/.exec(e.code);
+        const next = digit && TASKS[Number(digit[1]) - 1];
+        if (next) {
+          e.preventDefault();
+          selectTask(next);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSettings]);
+  }, [settingsPhase]);
+
+  /* Changement d'onglet, par clic ou au raccourci. Lit l'onglet courant dans
+     `taskRef` : le gestionnaire clavier est enregistré une fois pour toutes et
+     ne verrait sinon que la valeur du premier rendu. */
+  function selectTask(next: Task) {
+    if (next.id === taskRef.current) return;
+    setTask(next);
+    setOutput("");
+    setError(null);
+    setShowDiff(false);
+    dismissUndo();
+  }
+
+  /* Efface tout — saisie, conversation et réponse — après avoir mis le contenu
+     de côté : « Annuler » le remet en place pendant quelques secondes. */
+  function clearAll() {
+    setCleared({ input, thread, output, sourceText, showDiff, historyOpen });
+    clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setCleared(null), UNDO_MS);
+    setInput("");
+    setOutput("");
+    setError(null);
+    setShowDiff(false);
+    if (task.id === "reply") resetThread();
+  }
+
+  function undoClear() {
+    if (!cleared) return;
+    setInput(cleared.input);
+    setThread(cleared.thread);
+    setOutput(cleared.output);
+    setSourceText(cleared.sourceText);
+    setShowDiff(cleared.showDiff);
+    setHistoryOpen(cleared.historyOpen);
+    dismissUndo();
+    inputRef.current?.focus();
+  }
+
+  /** Retire la proposition d'annulation (délai écoulé, ou autre chose entamée). */
+  function dismissUndo() {
+    clearTimeout(undoTimerRef.current);
+    setCleared(null);
+  }
+
+  // Le compte à rebours ne doit pas survivre au démontage.
+  useEffect(() => () => clearTimeout(undoTimerRef.current), []);
+
+  function openSettings() {
+    setSettingsPhase("open");
+  }
+
+  // Fermeture : le panneau n'est pas retiré tout de suite, il joue d'abord sa
+  // sortie. C'est `onClosed` qui le repasse à « closed », une fois l'animation
+  // terminée.
+  function closeSettings() {
+    setSettingsPhase("closing");
+  }
 
   function run() {
     return generate(input);
@@ -485,14 +583,16 @@ export default function App() {
   async function generate(rawText: string) {
     if (!rawText.trim() || busy) return;
     if (!settings.apiKey) {
-      setShowSettings(true);
+      openSettings();
       return;
     }
     // Texte nettoyé des artefacts de copier-coller (Outlook, Word…) avant
     // envoi et comparaison, pour éviter les espaces parasites.
     const text = cleanInput(rawText);
+    // On repart pour un tour : l'effacement précédent n'est plus annulable.
+    dismissUndo();
     setBusy(true);
-    setError("");
+    setError(null);
     setOutput("");
     setShowDiff(false);
     setSourceText(text);
@@ -545,7 +645,7 @@ export default function App() {
         return task.id === "translate" ? out : normalizeDashes(out);
       });
     } catch (e) {
-      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+      if ((e as Error).name !== "AbortError") setError(e);
     } finally {
       setBusy(false);
     }
@@ -617,7 +717,7 @@ export default function App() {
   function reuseOutput() {
     setInput(output);
     setOutput("");
-    setError("");
+    setError(null);
     // La sortie disparaît : on quitte l'affichage des modifications pour ne pas
     // diffuser l'ancien texte source contre une sortie vide (tout en rouge).
     setShowDiff(false);
@@ -642,7 +742,7 @@ export default function App() {
     setTask(rephrase);
     setInput(output);
     setOutput("");
-    setError("");
+    setError(null);
     setShowDiff(false);
     inputRef.current?.focus();
   }
@@ -666,6 +766,19 @@ export default function App() {
     diffSegments?.some((s) => s.op !== "equal" && !/^\s+$/.test(s.text)) ?? false;
 
   const filledCount = thread.filter((m) => m.text.trim()).length;
+
+  // Zone d'erreur, placée comme la zone de réponse : au-dessus de la saisie en
+  // mode Répondre, en dessous ailleurs. « Réessayer » relance sur le texte
+  // figé au dernier lancement, pas sur la saisie courante — c'est bien la
+  // demande qui a échoué que l'on rejoue.
+  const errorZone = error ? (
+    <ErrorNotice
+      error={error}
+      busy={busy}
+      onRetry={() => generate(sourceText)}
+      onOpenSettings={openSettings}
+    />
+  ) : null;
 
   // Zone de réponse, extraite pour être placée en tête en mode Répondre
   // (la réponse reste ainsi visible sans scroller) et en bas ailleurs.
@@ -694,7 +807,6 @@ export default function App() {
               className="ghost-btn"
               onClick={reuseIntoRephrase}
               disabled={!output || busy}
-              title="Reprendre cette réponse dans l'onglet Reformuler"
             >
               <RefreshIcon />
               Reprendre et reformuler
@@ -705,7 +817,6 @@ export default function App() {
                 className="ghost-btn"
                 onClick={reuseOutput}
                 disabled={!output || busy}
-                title="Reprendre ce texte comme nouvelle entrée"
               >
                 <ReuseIcon />
                 Reprendre
@@ -717,7 +828,6 @@ export default function App() {
                   className="ghost-btn"
                   onClick={iterateOutput}
                   disabled={!output || busy}
-                  title="Reprendre cette sortie et relancer la reformulation"
                 >
                   <RefreshIcon />
                   Réitérer
@@ -764,7 +874,7 @@ export default function App() {
           <span className="brand-dot" />
           Layer AI
         </div>
-        <button className="icon-btn" title="Réglages" onClick={() => setShowSettings(true)}>
+        <button className="icon-btn" aria-label="Réglages" onClick={openSettings}>
           <GearIcon />
         </button>
       </header>
@@ -776,13 +886,7 @@ export default function App() {
             <button
               key={t.id}
               className={`tab ${t.id === task.id ? "active" : ""}`}
-              onClick={() => {
-                if (t.id === task.id) return;
-                setTask(t);
-                setOutput("");
-                setError("");
-                setShowDiff(false);
-              }}
+              onClick={() => selectTask(t)}
             >
               {Icon && <Icon />}
               {t.label}
@@ -807,7 +911,7 @@ export default function App() {
         {task.id === "reply" && (
           <>
             {outputZone}
-            {error && <div className="error">{error}</div>}
+            {errorZone}
           </>
         )}
         <div className="input-zone">
@@ -835,16 +939,7 @@ export default function App() {
           />
           <div className="input-actions">
             {input || (task.id === "reply" && thread.some((m) => m.text.trim())) ? (
-              <button
-                className="ghost-btn danger"
-                onClick={() => {
-                  setInput("");
-                  setOutput("");
-                  setError("");
-                  setShowDiff(false);
-                  if (task.id === "reply") resetThread();
-                }}
-              >
+              <button className="ghost-btn danger" onClick={clearAll}>
                 <TrashIcon />
                 Effacer
               </button>
@@ -870,7 +965,7 @@ export default function App() {
 
         {task.id !== "reply" && (
           <>
-            {error && <div className="error">{error}</div>}
+            {errorZone}
             {outputZone}
           </>
         )}
@@ -905,7 +1000,6 @@ export default function App() {
                         <div className="msg-id">
                           <span
                             className="msg-num"
-                            title={`Message ${thread.length - i} de la conversation (1 = plus ancien)`}
                           >
                             {thread.length - i}
                           </span>
@@ -921,14 +1015,14 @@ export default function App() {
                         <div className="msg-tools">
                           <button
                             className="icon-btn"
-                            title="Coller le presse-papier dans ce message"
+                            aria-label="Coller le presse-papier dans ce message"
                             onClick={() => pasteIntoMsg(m.id)}
                           >
                             <ClipboardIcon />
                           </button>
                           <button
                             className="icon-btn"
-                            title="Supprimer ce message"
+                            aria-label="Supprimer ce message"
                             onClick={() => removeMsg(m.id)}
                             disabled={thread.length === 1 && !m.text}
                           >
@@ -961,24 +1055,41 @@ export default function App() {
       </main>
 
       <footer className="footer">
+        {/* La version tient dans le pied de page plutôt que dans une section
+            « À propos » des réglages : le panneau est déjà plus haut que la
+            fenêtre du .exe, inutile de l'allonger encore. */}
+        <span className="footer-version">Layer AI {__APP_VERSION__}</span>
+        {" · "}
         {isDesktop ? (
           <span>
             <kbd>Ctrl Shift Espace</kbd> afficher/masquer · <kbd>Échap</kbd> masquer
           </span>
         ) : (
-          <span>Version web · les requêtes partent directement de ton navigateur</span>
+          <span>Les requêtes partent directement de ton navigateur</span>
         )}
       </footer>
 
-      {showSettings && (
+      {cleared && (
+        <div className="toast" role="status">
+          <span>Contenu effacé</span>
+          <button className="ghost-btn" onClick={undoClear}>
+            <ReuseIcon />
+            Annuler
+          </button>
+        </div>
+      )}
+
+      {settingsPhase !== "closed" && (
         <SettingsPanel
           settings={settings}
           onSave={(s) => {
             setSettings(s);
             saveSettings(s);
-            setShowSettings(false);
+            closeSettings();
           }}
-          onClose={() => setShowSettings(false)}
+          onClose={closeSettings}
+          closing={settingsPhase === "closing"}
+          onClosed={() => setSettingsPhase("closed")}
         />
       )}
     </div>
@@ -1022,14 +1133,62 @@ function GrowingTextarea({
   );
 }
 
+/**
+ * Message d'échec, en trois temps : ce qui s'est passé, quoi faire, et le
+ * bouton qui permet de le faire. Le message d'origine d'OpenAI (anglais,
+ * technique) est relégué en dessous, en petit : utile pour un cas non prévu,
+ * mais ce n'est pas ce qu'on lit en premier.
+ */
+function ErrorNotice({
+  error,
+  busy,
+  onRetry,
+  onOpenSettings,
+}: {
+  error: unknown;
+  busy: boolean;
+  onRetry: () => void;
+  onOpenSettings: () => void;
+}) {
+  const { title, hint, detail, action } = describeError(error);
+  return (
+    <div className="error" role="alert">
+      <AlertIcon />
+      <div className="error-body">
+        <p className="error-title">{title}</p>
+        <p className="error-hint">{hint}</p>
+        {detail && <p className="error-detail">{detail}</p>}
+        {action === "retry" && (
+          <button className="ghost-btn" onClick={onRetry} disabled={busy}>
+            <RefreshIcon />
+            Réessayer
+          </button>
+        )}
+        {action === "settings" && (
+          <button className="ghost-btn" onClick={onOpenSettings}>
+            <GearIcon />
+            Ouvrir les réglages
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsPanel({
   settings,
   onSave,
   onClose,
+  closing,
+  onClosed,
 }: {
   settings: Settings;
   onSave: (s: Settings) => void;
   onClose: () => void;
+  /** Fermeture demandée : le panneau joue sa sortie avant d'être retiré. */
+  closing: boolean;
+  /** Sortie terminée — l'appelant peut retirer le panneau. */
+  onClosed: () => void;
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [models, setModels] = useState<Record<string, string>>(settings.models);
@@ -1045,8 +1204,19 @@ function SettingsPanel({
   useEffect(() => () => applyTheme(loadSettings().theme), []);
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="panel" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`overlay${closing ? " closing" : ""}`}
+      onClick={onClose}
+      // Les animations du panneau remontent aussi jusqu'ici : on ne retient
+      // que celle de l'arrière-plan, sinon le démontage se jouerait deux fois.
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) onClosed();
+      }}
+    >
+      <div
+        className={`panel${closing ? " closing" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2>Réglages</h2>
 
         <section className="field">
@@ -1171,10 +1341,20 @@ function SettingsPanel({
 
 function GearIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <Icon>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+    </Icon>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </Icon>
   );
 }
 

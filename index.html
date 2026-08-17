@@ -22,6 +22,20 @@
     />
     <title>Layer AI</title>
 
+    <!-- Police embarquée (voir @font-face dans src/styles.css) : la précharger
+         lance son téléchargement sans attendre l'analyse de la feuille de
+         style, ce qui évite en pratique de voir le texte s'afficher d'abord
+         dans la police du système. Seul le sous-ensemble latin est préchargé —
+         latin-ext n'est tiré que si un texte le réclame. `crossorigin` est
+         obligatoire pour les polices, même servies depuis la même origine. -->
+    <link
+      rel="preload"
+      href="/fonts/geist-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
     <!-- PWA / écran d'accueil iPhone. Ces balises sont ignorées par le
          webview Tauri (.exe) : elles ne servent que dans un navigateur. -->
     <meta name="description" content="Mini assistant LLM : corriger, traduire ou reformuler un texte." />

@@ -27,10 +27,31 @@ export const THEMES: { code: Theme; label: string }[] = [
 const darkQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
 let currentTheme: Theme = "system";
 
+/** Durée du fondu de bascule ; doit rester alignée sur `[data-theme-anim]`. */
+const THEME_FADE_MS = 200;
+
+let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Autorise les transitions de couleur le temps de la bascule, via l'attribut
+ * `data-theme-anim` que guette le CSS. On les retire ensuite : les laisser en
+ * permanence retarderait aussi les changements de fond au survol.
+ */
+function fadeThemeSwitch(root: HTMLElement) {
+  root.dataset.themeAnim = "";
+  clearTimeout(fadeTimer);
+  fadeTimer = setTimeout(() => delete root.dataset.themeAnim, THEME_FADE_MS);
+}
+
 function syncTheme() {
   const dark =
     currentTheme === "dark" || (currentTheme === "system" && !!darkQuery?.matches);
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const next = dark ? "dark" : "light";
+  const root = document.documentElement;
+  // Fondu réservé aux vrais changements d'apparence : au montage, l'attribut
+  // est déjà posé par le script anti-flash de index.html et rien ne bouge.
+  if (root.dataset.theme && root.dataset.theme !== next) fadeThemeSwitch(root);
+  root.dataset.theme = next;
   // Barre du navigateur (PWA iPhone) assortie au fond de l'app.
   document
     .querySelector('meta[name="theme-color"]')
