@@ -285,11 +285,15 @@ textarea:focus-visible,
   letter-spacing: -0.01em;
 }
 
-.brand-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #0070f3, #7928ca);
+/* Logo du header. Hauteur fixe et largeur déduite du ratio du tracé
+   (140.14 / 166.22) : le monogramme est plus haut que les capitales de
+   « Lapsus » qui le suit, ce qui l'ancre visuellement sur la ligne de base
+   du texte au lieu de flotter. La couleur vient de `currentColor`, donc du
+   thème. */
+.brand-mark {
+  height: 16px;
+  width: auto;
+  flex: none;
 }
 
 .icon-btn {
