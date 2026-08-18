@@ -871,7 +871,7 @@ export default function App() {
     <div className="app">
       <header className="header" data-tauri-drag-region>
         <div className="brand" data-tauri-drag-region>
-          <span className="brand-dot" />
+          <LapsusMark />
           Lapsus
         </div>
         <button className="icon-btn" aria-label="Réglages" onClick={openSettings}>
@@ -1355,6 +1355,23 @@ function AlertIcon() {
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
     </Icon>
+  );
+}
+
+/* Logo Lapsus. Tracé vectoriel unique (source : public/logo.svg), inline
+   plutôt que dans une balise <img> pour deux raisons : `currentColor` le fait
+   suivre le thème clair/sombre comme le reste du texte du header, et il
+   s'affiche avec le bundle, sans requête réseau ni scintillement. */
+function LapsusMark() {
+  return (
+    <svg
+      className="brand-mark"
+      viewBox="0 0 140.14 166.22"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M15.41,86.24C5.13,77.55,0,65.18,0,49.14S5.27,20.9,15.79,12.54C26.33,4.19,40.86,0,59.42,0h20.3v166.22h-22.57v-66.69c-17.54-.16-31.46-4.59-41.74-13.29ZM96.51,0h43.62v11.79c-5.85.67-10.24,1.75-13.16,3.26s-4.93,3.84-6.01,7.02c-1.09,3.18-1.63,7.85-1.63,14.04v130.11h-22.82V0Z" />
+    </svg>
   );
 }
 
