@@ -872,7 +872,7 @@ export default function App() {
       <header className="header" data-tauri-drag-region>
         <div className="brand" data-tauri-drag-region>
           <span className="brand-dot" />
-          Layer AI
+          Lapsus
         </div>
         <button className="icon-btn" aria-label="Réglages" onClick={openSettings}>
           <GearIcon />
@@ -1058,7 +1058,7 @@ export default function App() {
         {/* La version tient dans le pied de page plutôt que dans une section
             « À propos » des réglages : le panneau est déjà plus haut que la
             fenêtre du .exe, inutile de l'allonger encore. */}
-        <span className="footer-version">Layer AI {__APP_VERSION__}</span>
+        <span className="footer-version">Lapsus {__APP_VERSION__}</span>
         {" · "}
         {isDesktop ? (
           <span>

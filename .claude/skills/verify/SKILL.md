@@ -1,9 +1,9 @@
 ---
 name: verify
-description: Vérifier un changement de Layer AI en pilotant l'app compilée dans un navigateur headless, sans clé API réelle.
+description: Vérifier un changement de Lapsus en pilotant l'app compilée dans un navigateur headless, sans clé API réelle.
 ---
 
-# Vérifier Layer AI
+# Vérifier Lapsus
 
 App 100 % front (React + Vite) : la seule surface est l'interface web. Pas de
 tests dans le repo ; on vérifie en pilotant l'app réelle.
@@ -27,7 +27,7 @@ Deux astuces indispensables :
   premier « Lancer » :
   ```js
   await page.addInitScript(() => {
-    localStorage.setItem("layer-ai-settings",
+    localStorage.setItem("lapsus-settings",
       JSON.stringify({ apiKey: "sk-test", autoPaste: true, replyProfile: "", models: {} }));
   });
   ```

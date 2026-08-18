@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    layer_ai_lib::run()
+    lapsus_lib::run()
 }

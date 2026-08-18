@@ -1743,7 +1743,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "layer-ai"
+name = "lapsus"
 version = "0.1.0"
 dependencies = [
  "serde",
